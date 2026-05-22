@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Run the Lua test suite with plenary busted.
+# Usage: scripts/test [path/to/single_spec.lua]
+set -uo pipefail
+
+tempfile=".test_output.tmp"
+
+if [[ -n "${1:-}" ]]; then
+  nvim --headless --noplugin -u tests/init.vim -c "PlenaryBustedFile $1" | tee "${tempfile}"
+else
+  nvim --headless --noplugin -u tests/init.vim \
+    -c "PlenaryBustedDirectory tests/ { minimal_init = 'tests/init.vim' }" | tee "${tempfile}"
+fi
+
+# Plenary does not exit non-zero when tests error during setup.
+errors=$(sed 's/\x1b\[[0-9;]*m//g' "${tempfile}" | awk '/(Errors|Failed)[[:space:]]+:/ {print $3}' | grep -v '^0$' || true)
+rm -f "${tempfile}"
+
+if [[ -n "${errors}" ]]; then
+  echo "Tests failed"
+  exit 1
+fi
+
+exit 0

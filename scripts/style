@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Format Lua sources with stylua.
+set -euo pipefail
+
+stylua lua tests

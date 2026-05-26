@@ -51,7 +51,8 @@ describe("neotest-prove adapter", function()
   describe("entry point", function()
     it("is usable directly as an adapter", function()
       assert.equals("neotest-prove", adapter.name)
-      local fns = { "root", "filter_dir", "is_test_file", "discover_positions", "build_spec", "results" }
+      local fns =
+        { "root", "filter_dir", "is_test_file", "discover_positions", "build_spec", "results" }
       for _, fn in ipairs(fns) do
         assert.is_function(adapter[fn], fn .. " should be a function")
       end
@@ -105,10 +106,7 @@ describe("neotest-prove adapter", function()
 
   describe("root", function()
     it("detects a project root from marker files", function()
-      assert.equals(
-        FIXTURES .. "/projects/sample",
-        adapter.root(FIXTURES .. "/projects/sample/t")
-      )
+      assert.equals(FIXTURES .. "/projects/sample", adapter.root(FIXTURES .. "/projects/sample/t"))
     end)
 
     it("returns nil when no marker is found", function()
@@ -255,7 +253,8 @@ describe("neotest-prove adapter", function()
     end
 
     it("maps a passed file", function()
-      local path = write_json('{"files":{"/p/t/a.t":{"status":"passed","errors":[],"subtests":{}}}}')
+      local path =
+        write_json('{"files":{"/p/t/a.t":{"status":"passed","errors":[],"subtests":{}}}}')
       assert.equals("passed", run_results(path)["/p/t/a.t"].status)
     end)
 

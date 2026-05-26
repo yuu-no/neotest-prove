@@ -48,9 +48,12 @@ local function run_tree(tree, adp)
 end
 
 local function run_file(path, adp)
-  return run_tree(Tree.from_list({ file_pos(path) }, function(p)
-    return p.id
-  end), adp)
+  return run_tree(
+    Tree.from_list({ file_pos(path) }, function(p)
+      return p.id
+    end),
+    adp
+  )
 end
 
 describe("neotest-prove integration", function()

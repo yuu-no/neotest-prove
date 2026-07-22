@@ -10,6 +10,30 @@ local unpack = table.unpack or unpack
 -- Directory names always excluded from test discovery.
 local EXCLUDED_DIRS = { ".git", "blib", "local", "_build", ".build" }
 
+-- Neovim's builtin `.t` filetype detection falls back to the fictitious
+-- "tads" filetype for absolute paths (its `t/`/`xt/` fast-path is a literal
+-- string match on the dirname, which never holds for absolute paths), so
+-- treesitter discovery would otherwise always fail for this extension.
+-- Force it to `perl` in both the main process and, once started, the
+-- neotest treesitter subprocess (which loads no user config of its own).
+local FT_PATCH = { extension = { t = "perl" } }
+local main_patched, child_patched = false, false
+
+local function ensure_perl_filetype()
+  if not main_patched then
+    main_patched = true
+    vim.filetype.add(FT_PATCH)
+  end
+  if not child_patched and lib.subprocess.enabled() then
+    child_patched = pcall(
+      lib.subprocess.request,
+      "nvim_exec_lua",
+      "return vim.filetype.add(...)",
+      { FT_PATCH }
+    )
+  end
+end
+
 --- Normalise a configured command into an argument list.
 --- A string is split on whitespace; a list is copied as-is.
 ---@param command string|string[]
@@ -130,6 +154,7 @@ local function create_adapter(opts)
   ---@param file_path string
   ---@return neotest.Tree
   function adapter.discover_positions(file_path)
+    ensure_perl_filetype()
     -- Subtests are emitted as `test` positions; `nested_tests` keeps subtests
     -- nested inside other subtests.
     local ok, tree =

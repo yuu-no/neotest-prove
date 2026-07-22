@@ -78,14 +78,28 @@ sub parse_tap_file {
 }
 
 # Walk raw TAP lines, recording subtest results and failure diagnostics.
-# Subtests nest by 4-space indentation; a `# Subtest: NAME` comment opens one
-# and a same-indent `ok N - NAME` line closes it.
+# Subtests nest by 4-space indentation and open in one of two forms:
+#   - Test::More style: a `# Subtest: NAME` comment opens one and a
+#     same-indent `ok N - NAME` line closes it.
+#   - Test2::V0 style: a `(not )?ok N - NAME {` line opens one and a
+#     same-indent, bare `}` line closes it. Test2 buffers subtest output, so
+#     pass/fail is already known from the opening line; a subtest skipped in
+#     its entirety instead reports that on a nested `1..0 # SKIP ...` plan
+#     line, which is detected separately while the subtest body is open.
+#
+# A `(not )?ok ... {` line is only treated as a real Test2 opener when
+# `find_brace_pairs` has matched it to a later bare `}` at the same indent
+# (see below) -- an ordinary assertion whose description happens to end in a
+# literal "{" has no such closer and falls through to plain ok/not-ok
+# handling instead.
 sub parse_subtests {
     my ( $lines, $file ) = @_;
+    my ( $brace_open, $brace_close ) = find_brace_pairs($lines);
     my @stack;          # innermost-last
     my %pending_msg;    # indent => message for the next "at ... line" line
 
-    for my $line (@$lines) {
+    for my $i ( 0 .. $#$lines ) {
+        my $line = $lines->[$i];
         my ($ws) = $line =~ /^(\s*)/;
         my $indent = length $ws;
 
@@ -104,23 +118,62 @@ sub parse_subtests {
             next;
         }
 
+        if (   $brace_open->{$i}
+            && $line =~ /^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?(.*?)\s*\{\s*$/ )
+        {
+            my $failed = defined $1;
+            my $rest   = $2;
+            my $name   = trim_desc($rest);
+            my @names  = map { $_->{name} } @stack;
+            push @names, $name;
+            push @stack,
+              {
+                name           => $name,
+                marker_indent  => $indent,
+                content_indent => $indent + 4,
+                names          => \@names,
+                errors         => [],
+                brace          => 1,
+                status         => tap_status( $rest, $failed ),
+              };
+            next;
+        }
+
+        if ( $brace_close->{$i} && $line =~ /^\s*\}\s*$/ ) {
+            if (   @stack
+                && $stack[-1]{brace}
+                && $indent == $stack[-1]{marker_indent} )
+            {
+                my $st = pop @stack;
+                $file->{subtests}{ join '::', @{ $st->{names} } } = {
+                    status => $st->{status},
+                    errors => $st->{errors},
+                };
+            }
+            next;
+        }
+
+        if (   @stack
+            && $stack[-1]{brace}
+            && $indent == $stack[-1]{content_indent}
+            && $line =~ /^\s*1\.\.0\s*#\s*SKIP\b/i )
+        {
+            $stack[-1]{status} = 'skipped';
+            next;
+        }
+
         if ( $line =~ /^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?(.*)$/ ) {
             my $failed = defined $1;
             my $rest   = $2;
-            ( my $desc = $rest ) =~ s/\s*#.*$//;
-            $desc =~ s/^\s+//;
-            $desc =~ s/\s+$//;
+            my $desc   = trim_desc($rest);
             if (   @stack
+                && !$stack[-1]{brace}
                 && $indent == $stack[-1]{marker_indent}
                 && $desc eq $stack[-1]{name} )
             {
                 my $st = pop @stack;
-                my $status =
-                    $rest =~ /#\s*skip/i ? 'skipped'
-                  : $failed              ? 'failed'
-                  :                        'passed';
                 $file->{subtests}{ join '::', @{ $st->{names} } } = {
-                    status => $status,
+                    status => tap_status( $rest, $failed ),
                     errors => $st->{errors},
                 };
             }
@@ -140,6 +193,60 @@ sub parse_subtests {
             next;
         }
     }
+}
+
+# Determine which "(not )?ok ... {" lines are genuine Test2::V0 subtest
+# openers, by pairing them with a later bare "}" at the same indent. Any
+# candidate that reaches end-of-file unmatched -- e.g. a plain assertion
+# whose description happens to end in a literal "{" -- is left unmatched so
+# `parse_subtests` treats it as an ordinary ok/not-ok line instead.
+sub find_brace_pairs {
+    my ($lines) = @_;
+    my ( %is_open, %is_close );
+    my @stack;    # candidate opens: { indent => ..., idx => ... }
+
+    for my $i ( 0 .. $#$lines ) {
+        my $line = $lines->[$i];
+        my ($ws) = $line =~ /^(\s*)/;
+        my $indent = length $ws;
+
+        if ( $line =~ /^\s*(?:not\s+)?ok\b\s*\d*\s*(?:-\s*)?.*?\{\s*$/ ) {
+            push @stack, { indent => $indent, idx => $i };
+            next;
+        }
+
+        if ( $line =~ /^\s*\}\s*$/ ) {
+            # Discard candidates opened deeper than this closer -- they were
+            # never legitimately closed, so they weren't real openers.
+            pop @stack while @stack && $stack[-1]{indent} > $indent;
+            if ( @stack && $stack[-1]{indent} == $indent ) {
+                my $open = pop @stack;
+                $is_open{ $open->{idx} } = 1;
+                $is_close{$i}            = 1;
+            }
+            next;
+        }
+    }
+    return ( \%is_open, \%is_close );
+}
+
+# Strip a TAP directive comment and surrounding whitespace from a test
+# description.
+sub trim_desc {
+    my ($rest) = @_;
+    ( my $desc = $rest ) =~ s/\s*#.*$//;
+    $desc =~ s/^\s+//;
+    $desc =~ s/\s+$//;
+    return $desc;
+}
+
+# Map a TAP ok-line's directive/failure state to a subtest status.
+sub tap_status {
+    my ( $rest, $failed ) = @_;
+    return
+        $rest =~ /#\s*skip/i ? 'skipped'
+      : $failed              ? 'failed'
+      :                        'passed';
 }
 
 # Attach an error to the subtest whose body sits at the given indent, or to

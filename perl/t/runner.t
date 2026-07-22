@@ -73,6 +73,30 @@ subtest 'nested subtest results' => sub {
     is $file->{subtests}{'outer::inner'}{status}, 'passed', 'nested inner subtest passed';
 };
 
+subtest 'Test2::V0 brace-style subtest results' => sub {
+    my $file = file_entry( run_helper('test2_subtests.t'), 'test2_subtests.t' );
+    is $file->{status}, 'failed', 'file with a failing subtest is failed';
+    is $file->{subtests}{alpha}{status}, 'passed', 'alpha subtest passed';
+    is $file->{subtests}{beta}{status},  'failed', 'beta subtest failed';
+    ok scalar @{ $file->{subtests}{beta}{errors} } >= 1, 'beta subtest has an error';
+    is $file->{subtests}{outer}{status}, 'passed', 'outer subtest passed';
+    is $file->{subtests}{'outer::inner'}{status}, 'passed', 'nested inner subtest passed';
+};
+
+subtest 'Test2::V0 skip_all inside a subtest is reported as skipped' => sub {
+    my $file = file_entry( run_helper('test2_subtest_skip.t'), 'test2_subtest_skip.t' );
+    is $file->{subtests}{skippy}{status}, 'skipped', 'skippy subtest is skipped';
+    is $file->{subtests}{after}{status},  'passed',  'after subtest passed';
+};
+
+subtest 'an assertion description ending in a literal brace does not open a phantom subtest' => sub {
+    my $file =
+      file_entry( run_helper('test2_subtest_brace_desc.t'), 'test2_subtest_brace_desc.t' );
+    is $file->{subtests}{real_subtest}{status}, 'passed',
+      'real_subtest is reported under its own name, not prefixed by the assertion';
+    is scalar( keys %{ $file->{subtests} } ), 1, 'no phantom subtest was recorded';
+};
+
 subtest 'a test that dies before its plan is failed' => sub {
     my $file = file_entry( run_helper('dies.t'), 'dies.t' );
     is $file->{status}, 'failed', 'dies.t is failed';

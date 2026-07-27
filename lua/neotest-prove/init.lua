@@ -25,12 +25,8 @@ local function ensure_perl_filetype()
     vim.filetype.add(FT_PATCH)
   end
   if not child_patched and lib.subprocess.enabled() then
-    child_patched = pcall(
-      lib.subprocess.request,
-      "nvim_exec_lua",
-      "return vim.filetype.add(...)",
-      { FT_PATCH }
-    )
+    child_patched =
+      pcall(lib.subprocess.request, "nvim_exec_lua", "return vim.filetype.add(...)", { FT_PATCH })
   end
 end
 

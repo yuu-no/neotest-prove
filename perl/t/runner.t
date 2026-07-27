@@ -51,11 +51,21 @@ subtest 'passing file' => sub {
     is scalar @{ $file->{errors} }, 0, 'no errors';
 };
 
+# One prove run shared by the two failing-file subtests below.
+my $fail_results = run_helper( 'fail.t', 'fail_unnamed.t' );
+
 subtest 'failing file records an error with a line number' => sub {
-    my $file = file_entry( run_helper('fail.t'), 'fail.t' );
+    my $file = file_entry( $fail_results, 'fail.t' );
     is $file->{status}, 'failed', 'fail.t is failed';
     ok scalar @{ $file->{errors} } >= 1, 'has at least one error';
     like $file->{errors}[0]{message}, qr/Failed test/, 'error message mentions the failure';
+    ok $file->{errors}[0]{line} > 0, 'error carries a line number';
+};
+
+subtest 'failing assertion with no description still records a line number' => sub {
+    my $file = file_entry( $fail_results, 'fail_unnamed.t' );
+    is $file->{status}, 'failed', 'fail_unnamed.t is failed';
+    ok scalar @{ $file->{errors} } >= 1, 'has at least one error';
     ok $file->{errors}[0]{line} > 0, 'error carries a line number';
 };
 

@@ -17,6 +17,11 @@ use File::Find ();
 use POSIX qw(WEXITSTATUS WIFSIGNALED WTERMSIG);
 use TAP::Parser ();
 
+# Failure-location fragment shared by the "at FILE line N" dispatch branches
+# in `parse_subtests`. Captures the line number. Declared up here because the
+# TAP parsing below runs before later file-scope statements.
+my $AT_LINE = qr/at\s+\S+\s+line\s+(\d+)/;
+
 my ( $results_path, @prove_cmd );
 {
     my @argv = @ARGV;
@@ -186,11 +191,21 @@ sub parse_subtests {
 
         if ( $line =~ /^\s*#\s*Failed test\b(.*)$/ ) {
             ( my $msg = "Failed test$1" ) =~ s/\s+$//;
-            $pending_msg{$indent} = $msg;
+
+            # Test::More collapses "Failed test" and "at FILE line N" onto
+            # one line when the assertion has no description (e.g. `ok(0)`,
+            # `is($a, $b)`); no separate "at" line follows, so record the
+            # error now instead of parking a pending message.
+            if ( $msg =~ /^Failed test\s+$AT_LINE\.?$/ ) {
+                add_error( $file, \@stack, $indent, 'Failed test', $1 );
+            }
+            else {
+                $pending_msg{$indent} = $msg;
+            }
             next;
         }
 
-        if ( $line =~ /^\s*#\s*at\s+\S+\s+line\s+(\d+)/ ) {
+        if ( $line =~ /^\s*#\s*$AT_LINE/ ) {
             my $msg = delete $pending_msg{$indent};
             $msg = 'Test failed' unless defined $msg;
             add_error( $file, \@stack, $indent, $msg, $1 );

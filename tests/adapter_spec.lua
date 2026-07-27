@@ -155,11 +155,14 @@ describe("neotest-prove adapter", function()
       assert.same({ "inner", "outer" }, subtest_names(discover(FIXTURES .. "/nested_subtest.t")))
     end)
 
-    it("ignores subtests with a dynamic name", function()
+    it("ignores subtests with a dynamic or interpolated name", function()
       if not has_perl_parser() then
         return pending("perl treesitter parser not installed")
       end
-      assert.same({ "static one" }, subtest_names(discover(FIXTURES .. "/dynamic_subtest.t")))
+      assert.same(
+        { "double quoted", "static one" },
+        subtest_names(discover(FIXTURES .. "/dynamic_subtest.t"))
+      )
     end)
 
     it("handles an empty test file", function()

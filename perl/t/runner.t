@@ -60,6 +60,9 @@ subtest 'failing file records an error with a line number' => sub {
     ok scalar @{ $file->{errors} } >= 1, 'has at least one error';
     like $file->{errors}[0]{message}, qr/Failed test/, 'error message mentions the failure';
     ok $file->{errors}[0]{line} > 0, 'error carries a line number';
+    like $file->{errors}[0]{message}, qr/got: '2'/,      'message carries the got value';
+    like $file->{errors}[0]{message}, qr/expected: '3'/, 'message carries the expected value';
+    unlike $file->{errors}[0]{message}, qr/Looks like/, 'harness chatter is not included';
 };
 
 subtest 'failing assertion with no description still records a line number' => sub {
@@ -67,6 +70,8 @@ subtest 'failing assertion with no description still records a line number' => s
     is $file->{status}, 'failed', 'fail_unnamed.t is failed';
     ok scalar @{ $file->{errors} } >= 1, 'has at least one error';
     ok $file->{errors}[0]{line} > 0, 'error carries a line number';
+    like $file->{errors}[0]{message}, qr/got: '2'/,      'message carries the got value';
+    like $file->{errors}[0]{message}, qr/expected: '3'/, 'message carries the expected value';
 };
 
 subtest 'subtest results' => sub {
@@ -75,6 +80,10 @@ subtest 'subtest results' => sub {
     is $file->{subtests}{alpha}{status}, 'passed', 'alpha subtest passed';
     is $file->{subtests}{beta}{status},  'failed', 'beta subtest failed';
     ok scalar @{ $file->{subtests}{beta}{errors} } >= 1, 'beta subtest has an error';
+    like $file->{subtests}{beta}{errors}[0]{message}, qr/got: 'x'/,
+      'subtest error carries the got value';
+    like $file->{subtests}{beta}{errors}[0]{message}, qr/expected: 'y'/,
+      'subtest error carries the expected value';
 };
 
 subtest 'nested subtest results' => sub {

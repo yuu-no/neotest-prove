@@ -17,9 +17,10 @@ use File::Find ();
 use POSIX qw(WEXITSTATUS WIFSIGNALED WTERMSIG);
 use TAP::Parser ();
 
-# Failure-location fragment shared by the "at FILE line N" dispatch branches
-# in `parse_subtests`. Captures the line number. Declared up here because the
-# TAP parsing below runs before later file-scope statements.
+# Failure-location fragment shared by every "at FILE line N" form in
+# `parse_subtests`, so the diagnostic-folding blacklist and the dispatch
+# branches cannot drift apart. Captures the line number. Declared up here
+# because the TAP parsing below runs before later file-scope statements.
 my $AT_LINE = qr/at\s+\S+\s+line\s+(\d+)/;
 
 my ( $results_path, @prove_cmd );
@@ -106,11 +107,29 @@ sub parse_subtests {
     my ( $brace_open, $brace_close ) = find_brace_pairs($lines);
     my @stack;          # innermost-last
     my %pending_msg;    # indent => message for the next "at ... line" line
+    my $active_err;     # last recorded error, still collecting diagnostics
+    my $active_indent;
 
     for my $i ( 0 .. $#$lines ) {
         my $line = $lines->[$i];
         my ($ws) = $line =~ /^(\s*)/;
         my $indent = length $ws;
+
+        # Diagnostic comments that directly follow a recorded failure (e.g.
+        # Test::More's "got:/expected:", Test::Deep's "Compared ...", Test2's
+        # comparison tables) belong to that failure; fold them into its
+        # message until the streak breaks. Harness chatter ("Looks like you
+        # failed ...") and lines that start a new failure end the streak.
+        if ( defined $active_err ) {
+            if (   $indent == $active_indent
+                && $line =~ /^\s*#\s*(.*?)\s*$/
+                && $1 !~ /^(?:Subtest:|Failed test\b|$AT_LINE|Looks like\b)/ )
+            {
+                $active_err->{message} .= "\n$1" if length $1;
+                next;
+            }
+            $active_err = undef;
+        }
 
         if ( $line =~ /^\s*#\s*Subtest:\s*(.+?)\s*$/ ) {
             my $name  = $1;
@@ -197,7 +216,8 @@ sub parse_subtests {
             # `is($a, $b)`); no separate "at" line follows, so record the
             # error now instead of parking a pending message.
             if ( $msg =~ /^Failed test\s+$AT_LINE\.?$/ ) {
-                add_error( $file, \@stack, $indent, 'Failed test', $1 );
+                $active_err    = add_error( $file, \@stack, $indent, 'Failed test', $1 );
+                $active_indent = $indent;
             }
             else {
                 $pending_msg{$indent} = $msg;
@@ -208,7 +228,8 @@ sub parse_subtests {
         if ( $line =~ /^\s*#\s*$AT_LINE/ ) {
             my $msg = delete $pending_msg{$indent};
             $msg = 'Test failed' unless defined $msg;
-            add_error( $file, \@stack, $indent, $msg, $1 );
+            $active_err    = add_error( $file, \@stack, $indent, $msg, $1 );
+            $active_indent = $indent;
             next;
         }
     }
@@ -269,17 +290,19 @@ sub tap_status {
 }
 
 # Attach an error to the subtest whose body sits at the given indent, or to
-# the file when no such subtest is open.
+# the file when no such subtest is open. Returns the error so the caller can
+# keep appending follow-up diagnostic lines to its message.
 sub add_error {
     my ( $file, $stack, $indent, $msg, $lineno ) = @_;
     my $err = { message => $msg, line => $lineno + 0 };
     for my $st (@$stack) {
         if ( $st->{content_indent} == $indent ) {
             push @{ $st->{errors} }, $err;
-            return;
+            return $err;
         }
     }
     push @{ $file->{errors} }, $err;
+    return $err;
 }
 
 sub read_file {

@@ -14,6 +14,7 @@ use strict;
 use warnings;
 use File::Temp ();
 use File::Find ();
+use POSIX qw(WEXITSTATUS WIFSIGNALED WTERMSIG);
 use TAP::Parser ();
 
 my ( $results_path, @prove_cmd );
@@ -37,7 +38,10 @@ my $exit;
 {
     local $ENV{PERL_TEST_HARNESS_DUMP_TAP} = "$dump";
     my $status = system @prove_cmd;
-    $exit = $status == -1 ? 1 : ( $status >> 8 );
+    $exit =
+        $status == -1        ? 1
+      : WIFSIGNALED($status) ? 128 + WTERMSIG($status)
+      :                        WEXITSTATUS($status);
 }
 
 my %files;

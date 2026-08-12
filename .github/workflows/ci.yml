@@ -22,6 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Test2::Suite (which provides Test2::V0) only became core in perl 5.40,
+      # and ubuntu-latest still ships 5.38 -- without it the Test2 fixtures
+      # skip themselves and that half of the TAP parser goes unverified.
+      # Drop this step once the runner image is on perl 5.40 or newer.
+      - name: Install Test2::Suite
+        run: sudo apt-get update && sudo apt-get install -y libtest2-suite-perl
       - name: Run helper tests
         run: prove -v perl/t
 

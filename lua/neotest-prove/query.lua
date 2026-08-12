@@ -23,6 +23,14 @@
 -- -- both change the runtime name) is rejected by text. Single-quoted names
 -- keep those characters literally and are always matched.
 --
+-- A bareword before `=>` (`subtest can_dlv => sub { ... }`) is autoquoted by
+-- Perl, so its runtime name is static and it parses as `autoquoted_bareword`.
+-- It must be matched: an undiscovered outer subtest does not merely lose its
+-- own position, it reparents its children onto the file, so the nested
+-- subtests inside it get position IDs like `<file>::valid` while the helper
+-- reports `can_dlv::valid` -- nothing matches, and neotest paints every one
+-- of them with the file's failed status.
+--
 -- Each pattern alternates over the paren-call and paren-less call forms;
 -- the string-literal and interpolated-string-literal cases stay separate
 -- patterns because the `#not-match?` predicate applies per-pattern and must
@@ -61,4 +69,20 @@ return [[
   ]
   (#eq? @_subtest "subtest")
   (#not-match? @test.name "[$@\\\\]"))
+
+;; subtest(name => sub { ... })  /  subtest name => sub { ... }
+(
+  [
+    (function_call_expression
+      function: (function) @_subtest
+      arguments: (list_expression
+        .
+        (autoquoted_bareword) @test.name)) @test.definition
+    (ambiguous_function_call_expression
+      function: (function) @_subtest
+      arguments: (list_expression
+        .
+        (autoquoted_bareword) @test.name)) @test.definition
+  ]
+  (#eq? @_subtest "subtest"))
 ]]

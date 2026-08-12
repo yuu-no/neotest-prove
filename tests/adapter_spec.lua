@@ -155,6 +155,26 @@ describe("neotest-prove adapter", function()
       assert.same({ "inner", "outer" }, subtest_names(discover(FIXTURES .. "/nested_subtest.t")))
     end)
 
+    it("discovers subtests named by an autoquoted bareword", function()
+      if not has_perl_parser() then
+        return pending("perl treesitter parser not installed")
+      end
+      local tree = discover(FIXTURES .. "/bareword_subtest.t")
+      assert.same({ "inner", "outer_bareword", "paren_bareword" }, subtest_names(tree))
+      local ids = {}
+      for _, pos in tree:iter() do
+        if pos.type == "test" then
+          ids[#ids + 1] = pos.id
+        end
+      end
+      table.sort(ids)
+      assert.same({
+        FIXTURES .. "/bareword_subtest.t::outer_bareword",
+        FIXTURES .. "/bareword_subtest.t::outer_bareword::inner",
+        FIXTURES .. "/bareword_subtest.t::paren_bareword",
+      }, ids)
+    end)
+
     it("ignores subtests with a dynamic or interpolated name", function()
       if not has_perl_parser() then
         return pending("perl treesitter parser not installed")

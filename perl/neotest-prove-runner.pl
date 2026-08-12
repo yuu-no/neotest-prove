@@ -150,9 +150,8 @@ sub parse_subtests {
             && $line =~ /^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?(.*?)\s*\{\s*$/ )
         {
             my $failed = defined $1;
-            my $rest   = $2;
-            my $name   = trim_desc($rest);
-            my @names  = map { $_->{name} } @stack;
+            my ( $name, $directive ) = split_desc($2);
+            my @names = map { $_->{name} } @stack;
             push @names, $name;
             push @stack,
               {
@@ -162,7 +161,7 @@ sub parse_subtests {
                 names          => \@names,
                 errors         => [],
                 brace          => 1,
-                status         => tap_status( $rest, $failed ),
+                status         => tap_status( $directive, $failed ),
               };
             next;
         }
@@ -192,8 +191,7 @@ sub parse_subtests {
 
         if ( $line =~ /^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?(.*)$/ ) {
             my $failed = defined $1;
-            my $rest   = $2;
-            my $desc   = trim_desc($rest);
+            my ( $desc, $directive ) = split_desc($2);
             if (   @stack
                 && !$stack[-1]{brace}
                 && $indent == $stack[-1]{marker_indent}
@@ -201,7 +199,7 @@ sub parse_subtests {
             {
                 my $st = pop @stack;
                 $file->{subtests}{ join '::', @{ $st->{names} } } = {
-                    status => tap_status( $rest, $failed ),
+                    status => tap_status( $directive, $failed ),
                     errors => $st->{errors},
                 };
             }
@@ -270,23 +268,32 @@ sub find_brace_pairs {
     return ( \%is_open, \%is_close );
 }
 
-# Strip a TAP directive comment and surrounding whitespace from a test
-# description.
-sub trim_desc {
+# Split the payload of a TAP ok-line into its description and its directive
+# comment. Only an *unescaped* `#` starts a directive: Test::More and Test2
+# both escape `#` and `\` inside a description, so a subtest named
+# "has # hash" is emitted as `ok 1 - has \# hash`. Cutting at the first `#`
+# instead would leave a description that never matches the name recorded from
+# the `# Subtest:` line, so the subtest would never be closed and every
+# subtest after it would be recorded as its child.
+sub split_desc {
     my ($rest) = @_;
-    ( my $desc = $rest ) =~ s/\s*#.*$//;
+    my ( $desc, $directive ) = ( $rest, '' );
+    if ( $rest =~ /^((?:\\.|[^\\#])*)(#.*)$/s ) {
+        ( $desc, $directive ) = ( $1, $2 );
+    }
     $desc =~ s/^\s+//;
     $desc =~ s/\s+$//;
-    return $desc;
+    $desc =~ s/\\(.)/$1/g;
+    return ( $desc, $directive );
 }
 
 # Map a TAP ok-line's directive/failure state to a subtest status.
 sub tap_status {
-    my ( $rest, $failed ) = @_;
+    my ( $directive, $failed ) = @_;
     return
-        $rest =~ /#\s*skip/i ? 'skipped'
-      : $failed              ? 'failed'
-      :                        'passed';
+        $directive =~ /^#\s*skip/i ? 'skipped'
+      : $failed                    ? 'failed'
+      :                              'passed';
 }
 
 # Attach an error to the subtest whose body sits at the given indent, or to

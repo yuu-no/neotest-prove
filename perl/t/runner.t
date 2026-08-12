@@ -129,6 +129,13 @@ subtest 'an assertion description ending in a literal brace does not open a phan
     is scalar( keys %{ $file->{subtests} } ), 1, 'no phantom subtest was recorded';
 };
 
+subtest 'a subtest whose name contains a "#" is recorded under that name' => sub {
+    my $file = file_entry( run_helper('hash_subtest.t'), 'hash_subtest.t' );
+    is_deeply [ sort keys %{ $file->{subtests} } ], [ 'after', 'has # hash' ],
+      'both subtests are recorded, and the "#" one does not swallow the next';
+    is $file->{subtests}{'has # hash'}{status}, 'passed', 'the "#" subtest passed';
+};
+
 subtest 'a test that dies before its plan is failed' => sub {
     my $file = file_entry( run_helper('dies.t'), 'dies.t' );
     is $file->{status}, 'failed', 'dies.t is failed';

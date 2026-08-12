@@ -60,7 +60,16 @@ File::Find::find(
             my $rel = substr $_, length "$dump";
             $rel =~ s{^/+}{};
             my $path = '/' . $rel;
-            $files{$path} = parse_tap_file( $_, $path );
+
+            # `write_json` only runs once every file has been parsed, so a die
+            # in here would drop the results of every *other* file in the same
+            # run. Contain it to the one file it belongs to.
+            my $parsed = eval { parse_tap_file( $_, $path ) };
+            unless ($parsed) {
+                ( my $err = $@ || 'unknown error' ) =~ s/\s+\z//;
+                $parsed = unparsable_result("neotest-prove: could not parse TAP: $err");
+            }
+            $files{$path} = $parsed;
         },
     },
     "$dump",
@@ -74,7 +83,14 @@ exit $exit;
 # failure locations apart from ones reported in other files.
 sub parse_tap_file {
     my ( $path, $test_path ) = @_;
-    my $parser = TAP::Parser->new( { tap => read_file($path) } );
+    my $tap = read_file($path);
+
+    # A file that produced no TAP at all -- a compile error, an early `exit` --
+    # makes TAP::Parser die with "PANIC: could not determine iterator for
+    # input", so report it instead of handing an empty string over.
+    return unparsable_result('No TAP output') unless $tap =~ /\S/;
+
+    my $parser = TAP::Parser->new( { tap => $tap } );
 
     my @lines;
     while ( my $result = $parser->next ) {
@@ -89,6 +105,16 @@ sub parse_tap_file {
     my %file = ( status => $status, errors => [], subtests => {} );
     parse_subtests( \@lines, \%file, $test_path );
     return \%file;
+}
+
+# A file result standing in for TAP that could not be parsed.
+sub unparsable_result {
+    my ($message) = @_;
+    return {
+        status   => 'failed',
+        errors   => [ { message => $message, line => undef } ],
+        subtests => {},
+    };
 }
 
 # Walk raw TAP lines, recording subtest results and failure diagnostics.

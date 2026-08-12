@@ -152,6 +152,15 @@ subtest 'a test that dies before its plan is failed' => sub {
     is $file->{status}, 'failed', 'dies.t is failed';
 };
 
+subtest 'a file producing no TAP does not lose the other files in the run' => sub {
+    my $results = run_helper( 'no_output.t', 'pass.t' );
+    my $silent  = file_entry( $results, 'no_output.t' );
+    is $silent->{status}, 'failed', 'the file that produced nothing is failed';
+    like $silent->{errors}[0]{message}, qr/No TAP output/, 'and says why';
+    is file_entry( $results, 'pass.t' )->{status}, 'passed',
+      'the other file in the same run still has its result';
+};
+
 subtest 'helper emits valid JSON' => sub {
     my $results = run_helper('subtests.t');
     is ref($results),          'HASH', 'top level is an object';

@@ -4,12 +4,22 @@ use Test::More;
 use FindBin ();
 use File::Temp ();
 use Cwd ();
+use File::Spec ();
 use JSON::PP ();
 
 my $helper   = "$FindBin::Bin/../neotest-prove-runner.pl";
 my $fixtures = "$FindBin::Bin/../../tests/fixtures";
 
 ok -f $helper, 'helper script exists';
+
+# Test2::V0 comes from Test2::Suite, which only became core in perl 5.40 (the
+# Test2 modules Test::Simple has bundled since 5.26 do not include it), so the
+# Test2 fixtures cannot run everywhere. Probed in a subprocess: loading
+# Test2::V0 into this Test::More process would change how it reports.
+my $have_test2 = do {
+    my $devnull = File::Spec->devnull;
+    system("$^X -MTest2::V0 -e1 >$devnull 2>&1") == 0;
+};
 
 # Run the helper over the given fixtures and return the decoded JSON results.
 sub run_helper {
@@ -93,6 +103,7 @@ subtest 'nested subtest results' => sub {
 };
 
 subtest 'Test2::V0 brace-style subtest results' => sub {
+    plan skip_all => 'Test2::V0 is not installed' unless $have_test2;
     my $file = file_entry( run_helper('test2_subtests.t'), 'test2_subtests.t' );
     is $file->{status}, 'failed', 'file with a failing subtest is failed';
     is $file->{subtests}{alpha}{status}, 'passed', 'alpha subtest passed';
@@ -103,12 +114,14 @@ subtest 'Test2::V0 brace-style subtest results' => sub {
 };
 
 subtest 'Test2::V0 skip_all inside a subtest is reported as skipped' => sub {
+    plan skip_all => 'Test2::V0 is not installed' unless $have_test2;
     my $file = file_entry( run_helper('test2_subtest_skip.t'), 'test2_subtest_skip.t' );
     is $file->{subtests}{skippy}{status}, 'skipped', 'skippy subtest is skipped';
     is $file->{subtests}{after}{status},  'passed',  'after subtest passed';
 };
 
 subtest 'an assertion description ending in a literal brace does not open a phantom subtest' => sub {
+    plan skip_all => 'Test2::V0 is not installed' unless $have_test2;
     my $file =
       file_entry( run_helper('test2_subtest_brace_desc.t'), 'test2_subtest_brace_desc.t' );
     is $file->{subtests}{real_subtest}{status}, 'passed',

@@ -6,7 +6,12 @@ set -uo pipefail
 tempfile=".test_output.tmp"
 
 if [[ -n "${1:-}" ]]; then
-  nvim --headless --noplugin -u tests/init.vim -c "PlenaryBustedFile $1" | tee "${tempfile}"
+  # Not `PlenaryBustedFile`: it re-spawns nvim with no way to forward a minimal
+  # init, so the spec would run without the bootstrapped deps on the
+  # runtimepath. Run busted in this instance, which already sourced tests/init.vim.
+  spec=$(printf '%s' "$1" | sed "s/[\\\\']/\\\\&/g")
+  nvim --headless --noplugin -u tests/init.vim \
+    -c "lua require('plenary.busted').run(vim.fn.fnamemodify('${spec}', ':p'))" | tee "${tempfile}"
 else
   nvim --headless --noplugin -u tests/init.vim \
     -c "PlenaryBustedDirectory tests/ { minimal_init = 'tests/init.vim' }" | tee "${tempfile}"

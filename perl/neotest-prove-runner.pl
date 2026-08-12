@@ -19,9 +19,10 @@ use TAP::Parser ();
 
 # Failure-location fragment shared by every "at FILE line N" form in
 # `parse_subtests`, so the diagnostic-folding blacklist and the dispatch
-# branches cannot drift apart. Captures the line number. Declared up here
-# because the TAP parsing below runs before later file-scope statements.
-my $AT_LINE = qr/at\s+\S+\s+line\s+(\d+)/;
+# branches cannot drift apart. Captures the file and the line number.
+# Declared up here because the TAP parsing below runs before later file-scope
+# statements.
+my $AT_LINE = qr/at\s+(\S+)\s+line\s+(\d+)/;
 
 my ( $results_path, @prove_cmd );
 {
@@ -58,7 +59,8 @@ File::Find::find(
             return unless -f $_;
             my $rel = substr $_, length "$dump";
             $rel =~ s{^/+}{};
-            $files{ '/' . $rel } = parse_tap_file($_);
+            my $path = '/' . $rel;
+            $files{$path} = parse_tap_file( $_, $path );
         },
     },
     "$dump",
@@ -67,9 +69,11 @@ File::Find::find(
 write_json( $results_path, \%files );
 exit $exit;
 
-# Parse one dumped TAP file into { status, errors, subtests }.
+# Parse one dumped TAP file into { status, errors, subtests }. `$test_path` is
+# the path of the test file the dump belongs to, used to tell that file's
+# failure locations apart from ones reported in other files.
 sub parse_tap_file {
-    my ($path) = @_;
+    my ( $path, $test_path ) = @_;
     my $parser = TAP::Parser->new( { tap => read_file($path) } );
 
     my @lines;
@@ -83,7 +87,7 @@ sub parse_tap_file {
       :                         'passed';
 
     my %file = ( status => $status, errors => [], subtests => {} );
-    parse_subtests( \@lines, \%file );
+    parse_subtests( \@lines, \%file, $test_path );
     return \%file;
 }
 
@@ -103,7 +107,7 @@ sub parse_tap_file {
 # literal "{" has no such closer and falls through to plain ok/not-ok
 # handling instead.
 sub parse_subtests {
-    my ( $lines, $file ) = @_;
+    my ( $lines, $file, $test_path ) = @_;
     my ( $brace_open, $brace_close ) = find_brace_pairs($lines);
     my @stack;          # innermost-last
     my %pending_msg;    # indent => message for the next "at ... line" line
@@ -214,7 +218,9 @@ sub parse_subtests {
             # `is($a, $b)`); no separate "at" line follows, so record the
             # error now instead of parking a pending message.
             if ( $msg =~ /^Failed test\s+$AT_LINE\.?$/ ) {
-                $active_err    = add_error( $file, \@stack, $indent, 'Failed test', $1 );
+                my ( $lineno, $where ) = error_location( $test_path, $1, $2 );
+                $active_err = add_error( $file, \@stack, $indent,
+                    join( "\n", 'Failed test', $where ? $where : () ), $lineno );
                 $active_indent = $indent;
             }
             else {
@@ -224,9 +230,11 @@ sub parse_subtests {
         }
 
         if ( $line =~ /^\s*#\s*$AT_LINE/ ) {
+            my ( $lineno, $where ) = error_location( $test_path, $1, $2 );
             my $msg = delete $pending_msg{$indent};
             $msg = 'Test failed' unless defined $msg;
-            $active_err    = add_error( $file, \@stack, $indent, $msg, $1 );
+            $active_err = add_error( $file, \@stack, $indent,
+                join( "\n", $msg, $where ? $where : () ), $lineno );
             $active_indent = $indent;
             next;
         }
@@ -296,12 +304,26 @@ sub tap_status {
       :                              'passed';
 }
 
+# Resolve a TAP "at FILE line N" location against the test file being parsed.
+# Test::More reports the location of the assertion itself, which for an
+# assertion made inside a helper module is a different file -- attaching its
+# line number to the test file would drop a diagnostic on an unrelated line,
+# so a foreign location is returned as trailing message text instead.
+# Returns (line, extra message text); exactly one of the two is set.
+sub error_location {
+    my ( $test_path, $at_file, $at_line ) = @_;
+    ( my $reported = $at_file ) =~ s{^\./}{};
+    return ( $at_line, '' )
+      if $test_path eq $reported || $test_path =~ m{/\Q$reported\E$};
+    return ( undef, "at $at_file line $at_line" );
+}
+
 # Attach an error to the subtest whose body sits at the given indent, or to
 # the file when no such subtest is open. Returns the error so the caller can
 # keep appending follow-up diagnostic lines to its message.
 sub add_error {
     my ( $file, $stack, $indent, $msg, $lineno ) = @_;
-    my $err = { message => $msg, line => $lineno + 0 };
+    my $err = { message => $msg, line => defined $lineno ? $lineno + 0 : undef };
     for my $st (@$stack) {
         if ( $st->{content_indent} == $indent ) {
             push @{ $st->{errors} }, $err;
@@ -361,12 +383,19 @@ sub encode_result {
       . encode_errors( $r->{errors} ) . '}';
 }
 
+# `line` is null for a failure whose reported location is not in this test
+# file; the Lua side leaves such an error unanchored rather than pinning it to
+# an arbitrary line.
 sub encode_errors {
     my ($errors) = @_;
     return '['
       . join( ',',
-        map { '{"message":' . json_str( $_->{message} ) . ',"line":' . ( $_->{line} + 0 ) . '}' }
-          @$errors )
+        map {
+                '{"message":'
+              . json_str( $_->{message} )
+              . ',"line":'
+              . ( defined $_->{line} ? $_->{line} + 0 : 'null' ) . '}'
+        } @$errors )
       . ']';
 }
 

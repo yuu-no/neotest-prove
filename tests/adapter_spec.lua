@@ -272,6 +272,16 @@ describe("neotest-prove adapter", function()
       assert.equals(41, results["/p/t/a.t"].errors[1].line)
     end)
 
+    it("leaves an error unanchored when the helper reports a null line", function()
+      local path = write_json(
+        '{"files":{"/p/t/a.t":{"status":"failed",'
+          .. '"errors":[{"message":"boom","line":null}],"subtests":{}}}}'
+      )
+      local err = run_results(path)["/p/t/a.t"].errors[1]
+      assert.equals("boom", err.message)
+      assert.is_nil(err.line)
+    end)
+
     it("maps subtest results, including nested ones", function()
       local path = write_json(
         '{"files":{"/p/t/a.t":{"status":"failed","errors":[],"subtests":{'

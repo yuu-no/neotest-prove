@@ -136,6 +136,17 @@ subtest 'a subtest whose name contains a "#" is recorded under that name' => sub
     is $file->{subtests}{'has # hash'}{status}, 'passed', 'the "#" subtest passed';
 };
 
+subtest 'a failure reported in another file carries no line number' => sub {
+    my $file = file_entry( run_helper('helper_failure.t'), 'helper_failure.t' );
+    my $err = $file->{subtests}{'uses helper'}{errors}[0];
+    is $err->{line}, undef, 'a failure located in the helper module is not anchored to a line';
+    like $err->{message}, qr/NeotestProveHelper\.pm line \d+/,
+      'the foreign location is kept in the message';
+    like $err->{message}, qr/got: 'nope'/, 'the diagnostic is still folded in';
+    ok $file->{errors}[0]{line} > 0,
+      'the subtest failure reported in the test file itself keeps its line';
+};
+
 subtest 'a test that dies before its plan is failed' => sub {
     my $file = file_entry( run_helper('dies.t'), 'dies.t' );
     is $file->{status}, 'failed', 'dies.t is failed';

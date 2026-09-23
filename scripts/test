@@ -3,19 +3,20 @@
 # Usage: scripts/test [path/to/single_spec.lua]
 set -uo pipefail
 
+init="tests/minimal_init.lua"
 tempfile=".test_output.tmp"
 
 if [[ -n "${1:-}" ]]; then
   # Not `PlenaryBustedFile`: it re-spawns nvim with no way to forward a minimal
   # init, so the spec would run without the bootstrapped deps on the
-  # runtimepath. Run busted in this instance, which already sourced tests/init.vim.
+  # runtimepath. Run busted in this instance, which already sourced the init.
   spec=$(printf '%s' "$1" | sed "s/[\\\\']/\\\\&/g")
-  nvim --headless --noplugin -u tests/init.vim \
-    -c "lua require('plenary.busted').run(vim.fn.fnamemodify('${spec}', ':p'))" | tee "${tempfile}"
+  run_command="lua require('plenary.busted').run(vim.fn.fnamemodify('${spec}', ':p'))"
 else
-  nvim --headless --noplugin -u tests/init.vim \
-    -c "PlenaryBustedDirectory tests/ { minimal_init = 'tests/init.vim' }" | tee "${tempfile}"
+  run_command="PlenaryBustedDirectory tests/ { minimal_init = '${init}' }"
 fi
+
+nvim --headless --noplugin -u "${init}" -c "${run_command}" | tee "${tempfile}"
 
 # Plenary does not exit non-zero when tests error during setup.
 errors=$(sed 's/\x1b\[[0-9;]*m//g' "${tempfile}" | awk '/(Errors|Failed)[[:space:]]+:/ {print $3}' | grep -v '^0$' || true)

@@ -366,9 +366,11 @@ sub add_error {
     return $err;
 }
 
+# Slurp a dumped TAP file. Dies when it cannot be opened; the caller's eval
+# turns that into a "could not parse TAP" result for just that file.
 sub read_file {
     my ($path) = @_;
-    open my $fh, '<', $path or return '';
+    open my $fh, '<', $path or die "cannot read $path: $!\n";
     local $/;
     my $content = <$fh>;
     close $fh;

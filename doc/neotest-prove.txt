@@ -1,0 +1,204 @@
+*neotest-prove.txt*  Run Perl tests with prove (Test::Harness) through neotest
+
+Author:  yuu-no
+License: MIT
+
+==============================================================================
+CONTENTS                                              *neotest-prove-contents*
+
+  1. Introduction ........................... |neotest-prove-introduction|
+  2. Requirements ........................... |neotest-prove-requirements|
+  3. Installation ........................... |neotest-prove-installation|
+  4. Configuration .......................... |neotest-prove-configuration|
+  5. Usage .................................. |neotest-prove-usage|
+  6. Health check ........................... |neotest-prove-health|
+  7. How it works ........................... |neotest-prove-internals|
+  8. Limitations ............................ |neotest-prove-limitations|
+
+==============================================================================
+1. INTRODUCTION                                   *neotest-prove-introduction*
+
+neotest-prove is a |neotest| adapter for Perl test suites run with `prove`
+(Test::Harness). It discovers `.t` files and the `subtest` blocks inside
+them, runs them with your real `prove` binary, and reports per-file and
+per-subtest results, including failure messages and line numbers, back to
+neotest.
+
+Both Test::More and Test2::V0 style subtests are understood.
+
+==============================================================================
+2. REQUIREMENTS                                   *neotest-prove-requirements*
+
+- Neovim with |neotest| and its dependencies (nvim-nio, plenary.nvim).
+- `prove` on your `$PATH` (ships with Perl's Test::Harness).
+- Perl 5.10.1 or newer. No CPAN modules beyond the Perl core are needed.
+- The `perl` tree-sitter parser, for subtest discovery. Install it with
+  `:TSInstall perl` from nvim-treesitter. Without it only whole files are
+  shown as test positions.
+- A POSIX-like operating system (Linux, macOS, BSD). Windows is untested.
+
+==============================================================================
+3. INSTALLATION                                   *neotest-prove-installation*
+
+With lazy.nvim: >lua
+
+    {
+      "nvim-neotest/neotest",
+      dependencies = {
+        "nvim-neotest/nvim-nio",
+        "nvim-lua/plenary.nvim",
+        "nvim-treesitter/nvim-treesitter",
+        "yuu-no/neotest-prove",
+      },
+      config = function()
+        require("neotest").setup({
+          adapters = {
+            require("neotest-prove"),
+          },
+        })
+      end,
+    }
+<
+The plugin ships a Perl helper in its `perl/` directory. Plugin managers keep
+it alongside `lua/`, so nothing else needs to be installed.
+
+==============================================================================
+4. CONFIGURATION                                 *neotest-prove-configuration*
+
+`require("neotest-prove")` is usable as an adapter as-is, with the defaults
+below. To customise it, call it with a table: >lua
+
+    require("neotest").setup({
+      adapters = {
+        require("neotest-prove")({
+          prove_command = "prove",
+          prove_args = {},
+          perl_command = "perl",
+          include_xt = false,
+          root_files = {
+            "cpanfile", "Makefile.PL", "Build.PL", "dist.ini", ".git",
+          },
+          extra_filter_dirs = {},
+        }),
+      },
+    })
+<
+Top-level keys replace the defaults wholesale; list values are not merged.
+Unknown option names and values of the wrong type raise an error at setup
+time.
+
+                                          *neotest-prove-config.prove_command*
+prove_command ~
+    `string|string[]`, default `"prove"`
+    Command used to invoke `prove`. A string is split on whitespace; pass a
+    list for multi-word commands, e.g. `{ "carton", "exec", "prove" }`.
+
+                                             *neotest-prove-config.prove_args*
+prove_args ~
+    `string[]`, default `{}`
+    Extra arguments always passed to `prove`, e.g. `{ "-Ilib", "-j4" }`.
+    `--merge` is always passed by the adapter (see |neotest-prove-internals|).
+
+                                           *neotest-prove-config.perl_command*
+perl_command ~
+    `string|string[]`, default `"perl"`
+    Command used to run the bundled Perl helper. Same shape as
+    `prove_command`. This is the Perl that parses the TAP; the tests
+    themselves run under whatever `prove` chooses.
+
+                                             *neotest-prove-config.include_xt*
+include_xt ~
+    `boolean`, default `false`
+    Include the `xt/` (author test) directory when discovering tests.
+
+                                             *neotest-prove-config.root_files*
+root_files ~
+    `string[]`,
+    default `{ "cpanfile", "Makefile.PL", "Build.PL", "dist.ini", ".git" }`
+    Files or directories whose presence marks a project root. `prove` is run
+    from the root, so relative paths in `prove_args` (`-Ilib`) resolve
+    against it.
+
+                                      *neotest-prove-config.extra_filter_dirs*
+extra_filter_dirs ~
+    `string[]`, default `{}`
+    Additional directory names to exclude from test discovery. `.git`,
+    `blib`, `local`, `_build` and `.build` are always excluded.
+
+Run-time arguments ~
+    Arguments passed as `extra_args` to |neotest.run.run()| are appended to
+    the `prove` command after `prove_args`: >lua
+
+        require("neotest").run.run({
+          vim.fn.expand("%"),
+          extra_args = { "--timer" },
+        })
+<
+==============================================================================
+5. USAGE                                                 *neotest-prove-usage*
+
+Use neotest as usual; see |neotest| for the full interface. For example: >lua
+
+    require("neotest").run.run()                    -- nearest test/subtest
+    require("neotest").run.run(vim.fn.expand("%"))  -- current file
+    require("neotest").run.run("t/")                -- a directory
+    require("neotest").summary.toggle()             -- browse tests & results
+<
+Running a subtest runs its whole file; see |neotest-prove-limitations|.
+
+==============================================================================
+6. HEALTH CHECK                                         *neotest-prove-health*
+
+>vim
+    :checkhealth neotest-prove
+<
+Verifies that neotest is installed, that the bundled helper script is present,
+that the `perl` tree-sitter parser is available, and that the `prove` and
+`perl` commands of every configured neotest-prove adapter are executable and
+recent enough. Run it first when tests do not show up or do not run.
+
+==============================================================================
+7. HOW IT WORKS                                      *neotest-prove-internals*
+
+Discovery ~
+    `.t` files are test files. Inside them, `subtest` calls whose first
+    argument is a literal string or a bareword (`subtest "name" => sub`,
+    `subtest('name', sub ...)`, `subtest name => sub`) become test positions,
+    nested to match the source. Discovery uses tree-sitter and needs the
+    `perl` parser; without it the adapter falls back to file-level positions.
+
+Running ~
+    The adapter runs a small bundled Perl helper
+    (`perl/neotest-prove-runner.pl`). The helper runs your `prove` command
+    with `PERL_TEST_HARNESS_DUMP_TAP` set, so Test::Harness writes the raw
+    TAP of each test file to a temporary directory. `--merge` is always
+    passed so that failure diagnostics, which Test::More prints to stderr,
+    are part of that TAP.
+
+    The helper then parses the dumped TAP with the core TAP::Parser module,
+    matches subtests by their indentation, and writes structured results as
+    JSON. The adapter maps them back onto neotest positions.
+
+    Because the real `prove` binary is used, `.proverc` and `prove` plugins
+    are respected, and `prove_command` can be anything that behaves like
+    `prove` (`carton exec prove`, a wrapper script, ...).
+
+==============================================================================
+8. LIMITATIONS                                     *neotest-prove-limitations*
+
+Subtest discovery is static ~
+    Only subtests named by a literal string or bareword are shown as
+    positions. A computed name (`subtest $name => sub`) or an interpolated
+    one (`subtest "case: $n" => sub`) cannot be mapped back to a source
+    location; those subtests are not surfaced and their results fold into
+    the file result.
+
+Subtests cannot be run in isolation ~
+    `prove` runs whole files. Running a single subtest from neotest runs its
+    file; the per-subtest result is a mapping from the file's TAP.
+
+Not supported ~
+    A DAP (debugging) strategy, Test::Class-style xUnit tests, and live
+    result streaming.
+
+vim:tw=78:ts=8:ft=help:norl:

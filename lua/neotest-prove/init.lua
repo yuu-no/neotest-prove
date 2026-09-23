@@ -30,21 +30,26 @@ local function ensure_perl_filetype()
   end
 end
 
+-- Location of the bundled Perl helper, relative to the plugin root.
+local HELPER_RELATIVE_PATH = "perl/neotest-prove-runner.pl"
+
 local _helper_path
---- Resolve the bundled Perl helper script of this plugin.
+--- Resolve the bundled Perl helper script. It is located relative to this
+--- file rather than searched on the runtimepath, so the plugin keeps working
+--- whatever directory name it was installed under.
 ---@return string
 local function plugin_helper_path()
   if _helper_path then
     return _helper_path
   end
-  local matches = vim.api.nvim_get_runtime_file("perl/neotest-prove-runner.pl", true)
-  for _, path in ipairs(matches) do
-    if path:match("neotest%-prove") then
-      _helper_path = path
-      return _helper_path
-    end
+  local source = debug.getinfo(1, "S").source:sub(2)
+  local plugin_root = vim.fn.fnamemodify(source, ":p:h:h:h")
+  local path = plugin_root .. "/" .. HELPER_RELATIVE_PATH
+  if vim.fn.filereadable(path) == 0 then
+    error(("neotest-prove: bundled Perl helper not found at %s"):format(path))
   end
-  error("neotest-prove: could not locate the bundled Perl helper on runtimepath")
+  _helper_path = path
+  return path
 end
 
 --- Build a minimal tree containing only the file position.

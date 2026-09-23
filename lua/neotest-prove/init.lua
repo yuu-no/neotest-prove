@@ -203,6 +203,10 @@ local function create_adapter(opts)
   ---@param _tree neotest.Tree
   ---@return table<string, neotest.Result>
   function adapter.results(spec, _result, _tree)
+    -- When nothing usable comes back (the helper or `prove` could not be
+    -- started, or the results file is corrupt) an empty table is returned:
+    -- neotest then marks every position of the run as failed and attaches the
+    -- process output, which is where the actual error message lives.
     local results_path = spec.context and spec.context.results_path
     if not results_path or vim.fn.filereadable(results_path) == 0 then
       return {}

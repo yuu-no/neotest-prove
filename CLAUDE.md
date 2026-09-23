@@ -10,7 +10,7 @@ A [neotest](https://github.com/nvim-neotest/neotest) adapter for Perl's `prove` 
 
 The adapter is intentionally split across two languages, and the seam between them is the key thing to understand before changing anything:
 
-- **Lua side (`lua/neotest-prove/`)** — implements the neotest adapter interface. `init.lua` builds the run spec; `query.lua` is the tree-sitter (perl) query that finds `subtest` calls with a literal-string or bareword name; `config.lua` validates and merges user options over defaults (unknown keys / wrong types raise); `health.lua` backs `:checkhealth neotest-prove` and reads each registered adapter's resolved options from `adapter.config`.
+- **Lua side (`lua/neotest-prove/`)** — implements the neotest adapter interface. `init.lua` builds the run spec; `query.lua` is the tree-sitter (perl) query that finds `subtest` calls with a literal-string or bareword name; `config.lua` holds every option's default and accepted types in one `OPTIONS` table and validates/merges user options over the defaults (unknown keys, wrong types, non-string list elements, and empty command options raise); `health.lua` backs `:checkhealth neotest-prove` and reads each registered adapter's resolved options from `adapter.config`; `helper.lua` resolves the bundled Perl helper's path relative to the plugin, for both `init.lua` and `health.lua`.
 - **Perl side (`perl/neotest-prove-runner.pl`)** — invoked by `adapter.build_spec`. It runs the user's real `prove` binary with `PERL_TEST_HARNESS_DUMP_TAP` set so Test::Harness dumps raw per-file TAP into a temp dir. The helper then walks that dir, parses each file with `TAP::Parser`, and writes a JSON blob to `--results <path>`. `adapter.results` decodes that JSON and maps it back onto positions.
 - **JSON contract** — `{ "files": { "<abs path>": { "status", "errors", "subtests": { "<name or outer::inner>": { "status", "errors" } } } } }`. Subtest keys for nested subtests are `::`-joined; the adapter maps them to neotest position IDs of the form `<file>::<subtest>`. Error `line` is 1-indexed in the JSON; the Lua side converts to 0-indexed for neotest.
 - **Helper JSON is hand-encoded** so the helper stays on Perl 5.10.1 core only (no CPAN). If you change the helper output shape, update `encode_*` in the helper AND `adapter.results` together.
@@ -42,7 +42,8 @@ prove -v perl/t
 Notes:
 
 - `scripts/test` post-processes plenary's output because plenary does not exit non-zero on setup errors — don't replace it with a bare `nvim --headless ... PlenaryBustedDirectory` call.
-- The Lua test suite needs the `perl` tree-sitter parser for the discovery tests. `has_perl_parser()` in `tests/adapter_spec.lua` skips those when the parser is missing; CI installs it explicitly.
+- The Lua test suite needs the `perl` tree-sitter parser for the discovery tests. `it_with_parser()` in `tests/helpers.lua` marks those pending when the parser is missing; CI installs it explicitly.
+- Shared spec helpers live in `tests/helpers.lua` (`require("tests.helpers")`; `tests/minimal_init.lua` puts the repo root on `package.path`). Plenary only runs `*_spec.lua`, so it is never executed as a spec.
 - `.tests/` and `.tmp/` are gitignored caches; don't commit them.
 
 ## Conventions

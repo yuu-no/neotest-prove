@@ -10,11 +10,12 @@ to respect.
 | --- | --- |
 | `lua/neotest-prove/init.lua` | The neotest adapter: discovery, `build_spec`, `results`. |
 | `lua/neotest-prove/query.lua` | Tree-sitter (perl) query that finds `subtest` calls. |
-| `lua/neotest-prove/config.lua` | Defaults, validation, and option merging. |
+| `lua/neotest-prove/config.lua` | Option definitions (defaults and accepted types), validation, and merging. |
 | `lua/neotest-prove/health.lua` | `:checkhealth neotest-prove`. |
+| `lua/neotest-prove/helper.lua` | Locates the bundled Perl helper relative to the plugin. |
 | `perl/neotest-prove-runner.pl` | Bundled helper that runs `prove` and turns its TAP into JSON. |
 | `perl/t/` | Tests for the helper (run with `prove`). |
-| `tests/` | Lua test suite (plenary busted) and its fixtures. |
+| `tests/` | Lua test suite (plenary busted), shared spec helpers (`tests/helpers.lua`), and fixtures. |
 | `doc/neotest-prove.txt` | Vim help. Keep it in sync with `README.md`. |
 
 The adapter is split across Lua and Perl. The seam is a JSON document the

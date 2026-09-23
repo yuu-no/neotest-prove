@@ -99,6 +99,17 @@ local function convert_errors(errors)
   return converted
 end
 
+--- Convert one helper-reported entry (a file or a subtest) into a
+--- neotest.Result.
+---@param entry table
+---@return neotest.Result
+local function to_result(entry)
+  return {
+    status = entry.status,
+    errors = convert_errors(entry.errors),
+  }
+end
+
 --- Create a neotest adapter bound to the given configuration.
 ---@param opts neotest-prove.Config
 ---@return neotest.Adapter
@@ -214,16 +225,10 @@ local function create_adapter(opts)
 
     local results = {}
     for file_path, file_result in pairs(decoded.files) do
-      results[file_path] = {
-        status = file_result.status,
-        errors = convert_errors(file_result.errors),
-      }
+      results[file_path] = to_result(file_result)
       if type(file_result.subtests) == "table" then
         for subtest_name, subtest_result in pairs(file_result.subtests) do
-          results[file_path .. "::" .. subtest_name] = {
-            status = subtest_result.status,
-            errors = convert_errors(subtest_result.errors),
-          }
+          results[file_path .. "::" .. subtest_name] = to_result(subtest_result)
         end
       end
     end

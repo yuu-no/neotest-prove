@@ -18,11 +18,24 @@ else
 fi
 
 nvim --headless --noplugin -u "${init}" -c "${run_command}" | tee "${tempfile}"
+status=${PIPESTATUS[0]}
 
-# Plenary does not exit non-zero when tests error during setup.
-errors=$(sed 's/\x1b\[[0-9;]*m//g' "${tempfile}" | awk '/(Errors|Failed)[[:space:]]+:/ {print $3}' | grep -v '^0$' || true)
+if [[ "${status}" -ne 0 ]]; then
+  echo "nvim exited with status ${status}"
+  exit 1
+fi
 
-if [[ -n "${errors}" ]]; then
+# Plenary neither exits non-zero when tests error during setup nor prints a
+# summary at all when the init fails to load, so a missing summary counts as
+# a failure too.
+counts=$(sed 's/\x1b\[[0-9;]*m//g' "${tempfile}" | awk '/(Errors|Failed)[[:space:]]+:/ {print $3}')
+
+if [[ -z "${counts}" ]]; then
+  echo "No test summary found: the suite did not run"
+  exit 1
+fi
+
+if grep -qv '^0$' <<<"${counts}"; then
   echo "Tests failed"
   exit 1
 fi

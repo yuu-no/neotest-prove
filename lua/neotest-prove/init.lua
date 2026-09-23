@@ -180,7 +180,9 @@ local function create_adapter(opts)
     local root = adapter.root(tree:data().path) or vim.fn.getcwd()
 
     -- The bundled Perl helper runs `prove`, captures the raw per-file TAP it
-    -- dumps, and writes structured results as JSON to `results_path`.
+    -- dumps, and writes structured results as JSON to `results_path`. The
+    -- test files must be absolute paths: the helper reconstructs each file's
+    -- path from where Test::Harness dumped its TAP, and keys the JSON by it.
     local command = config.to_argv(opts.perl_command)
     table.insert(command, plugin_helper_path())
     vim.list_extend(command, { "--results", results_path, "--" })

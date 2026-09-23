@@ -57,6 +57,10 @@ my $exit;
       :                        WEXITSTATUS($status);
 }
 
+# Test::Harness dumps each file's TAP at <dump dir>/<test path>. The adapter
+# passes test files as absolute paths, so stripping the dump dir prefix gives
+# back the absolute path the results are keyed by. Relative test paths would
+# be mis-keyed here, which is why `build_spec` never passes any.
 my %files;
 File::Find::find(
     {

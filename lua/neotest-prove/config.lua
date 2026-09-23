@@ -16,44 +16,53 @@ local M = {}
 ---@field root_files? string[]
 ---@field extra_filter_dirs? string[]
 
----@type neotest-prove.Config
-local defaults = {
-  prove_command = "prove",
-  prove_args = {},
-  perl_command = "perl",
-  include_xt = false,
-  root_files = { "cpanfile", "Makefile.PL", "Build.PL", "dist.ini", ".git" },
-  extra_filter_dirs = {},
+-- Every option, with its default value and the types it accepts. Validation
+-- rejects typos and wrong shapes up front rather than failing obscurely when
+-- a test is run.
+local OPTIONS = {
+  prove_command = { default = "prove", types = { "string", "table" } },
+  prove_args = { default = {}, types = { "table" } },
+  perl_command = { default = "perl", types = { "string", "table" } },
+  include_xt = { default = false, types = { "boolean" } },
+  root_files = {
+    default = { "cpanfile", "Makefile.PL", "Build.PL", "dist.ini", ".git" },
+    types = { "table" },
+  },
+  extra_filter_dirs = { default = {}, types = { "table" } },
 }
 
--- Accepted Lua types for each option, used to reject typos and wrong shapes
--- up front rather than failing obscurely when a test is run.
-local SCHEMA = {
-  prove_command = { "string", "table" },
-  prove_args = { "table" },
-  perl_command = { "string", "table" },
-  include_xt = { "boolean" },
-  root_files = { "table" },
-  extra_filter_dirs = { "table" },
-}
+---@type neotest-prove.Config
+local defaults = {}
+for key, option in pairs(OPTIONS) do
+  defaults[key] = option.default
+end
+
+---@param key string
+---@param value any
+---@param option { types: string[] }
+local function validate_option(key, value, option)
+  local types = option.types
+  local lua_type = type(value)
+  if not vim.tbl_contains(types, lua_type) then
+    error(
+      ("neotest-prove: option %q must be of type %s, got %s"):format(
+        key,
+        table.concat(types, " or "),
+        lua_type
+      ),
+      0
+    )
+  end
+end
 
 ---@param user_config table
 local function validate(user_config)
   for key, value in pairs(user_config) do
-    local allowed = SCHEMA[key]
-    if not allowed then
+    local option = OPTIONS[key]
+    if not option then
       error(("neotest-prove: unknown option %q"):format(tostring(key)), 0)
     end
-    if not vim.tbl_contains(allowed, type(value)) then
-      error(
-        ("neotest-prove: option %q must be of type %s, got %s"):format(
-          key,
-          table.concat(allowed, " or "),
-          type(value)
-        ),
-        0
-      )
-    end
+    validate_option(key, value, option)
   end
 end
 

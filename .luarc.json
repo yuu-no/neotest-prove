@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "LuaJIT",
+  "diagnostics.globals": [
+    "vim",
+    "describe",
+    "it",
+    "pending",
+    "assert",
+    "before_each",
+    "after_each"
+  ],
+  "workspace.library": [
+    "$VIMRUNTIME/lua",
+    ".tests/site/pack/deps/start/neotest/lua",
+    ".tests/site/pack/deps/start/nvim-nio/lua",
+    ".tests/site/pack/deps/start/plenary.nvim/lua"
+  ],
+  "workspace.checkThirdParty": false
+}

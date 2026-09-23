@@ -67,6 +67,13 @@ describe("neotest-prove adapter", function()
     it("accepts an empty config", function()
       assert.equals("neotest-prove", require("neotest-prove")({}).name)
     end)
+
+    it("exposes its resolved configuration", function()
+      assert.equals("prove", adapter.config.prove_command)
+      local configured = require("neotest-prove")({ prove_args = { "-Ilib" } })
+      assert.same({ "-Ilib" }, configured.config.prove_args)
+      assert.equals("prove", configured.config.prove_command)
+    end)
   end)
 
   describe("is_test_file", function()

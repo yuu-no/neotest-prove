@@ -57,6 +57,12 @@ local function validate(user_config)
   end
 end
 
+--- Return a copy of the default configuration.
+---@return neotest-prove.Config
+function M.defaults()
+  return vim.deepcopy(defaults)
+end
+
 --- Merge user configuration over the defaults.
 --- Top-level keys are replaced wholesale (list values are not deep-merged).
 --- Raises on unknown option names or values of the wrong type.

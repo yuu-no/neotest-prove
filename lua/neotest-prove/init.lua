@@ -117,6 +117,10 @@ local function create_adapter(opts)
   ---@type neotest.Adapter
   local adapter = { name = "neotest-prove" }
 
+  -- The resolved configuration, exposed for introspection (used by
+  -- `:checkhealth neotest-prove`). Treat it as read-only.
+  adapter.config = opts
+
   adapter.root = lib.files.match_root_pattern(unpack(opts.root_files))
 
   ---@param file_path string

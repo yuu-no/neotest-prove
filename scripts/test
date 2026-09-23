@@ -4,7 +4,8 @@
 set -uo pipefail
 
 init="tests/minimal_init.lua"
-tempfile=".test_output.tmp"
+tempfile=$(mktemp)
+trap 'rm -f "${tempfile}"' EXIT
 
 if [[ -n "${1:-}" ]]; then
   # Not `PlenaryBustedFile`: it re-spawns nvim with no way to forward a minimal
@@ -20,7 +21,6 @@ nvim --headless --noplugin -u "${init}" -c "${run_command}" | tee "${tempfile}"
 
 # Plenary does not exit non-zero when tests error during setup.
 errors=$(sed 's/\x1b\[[0-9;]*m//g' "${tempfile}" | awk '/(Errors|Failed)[[:space:]]+:/ {print $3}' | grep -v '^0$' || true)
-rm -f "${tempfile}"
 
 if [[ -n "${errors}" ]]; then
   echo "Tests failed"

@@ -5,6 +5,7 @@
 -- and the tree-sitter perl parser used for subtest discovery.
 
 local config = require("neotest-prove.config")
+local helper = require("neotest-prove.helper")
 
 local M = {}
 
@@ -88,13 +89,11 @@ local function check_perl_version(command)
 end
 
 local function check_helper()
-  local source = debug.getinfo(1, "S").source:sub(2)
-  local plugin_root = vim.fn.fnamemodify(source, ":p:h:h:h")
-  local helper = plugin_root .. "/perl/neotest-prove-runner.pl"
-  if vim.fn.filereadable(helper) == 1 then
-    ok(("bundled helper found: %s"):format(helper))
+  local path = helper.path()
+  if vim.fn.filereadable(path) == 1 then
+    ok(("bundled helper found: %s"):format(path))
   else
-    report_error(("bundled helper missing: %s"):format(helper), {
+    report_error(("bundled helper missing: %s"):format(path), {
       "Reinstall the plugin; the `perl/` directory must ship alongside `lua/`.",
     })
   end

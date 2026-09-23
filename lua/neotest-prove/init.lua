@@ -3,6 +3,7 @@ local logger = require("neotest.logging")
 local Tree = require("neotest.types").Tree
 
 local config = require("neotest-prove.config")
+local helper = require("neotest-prove.helper")
 local query = require("neotest-prove.query")
 
 local unpack = table.unpack or unpack
@@ -30,25 +31,13 @@ local function ensure_perl_filetype()
   end
 end
 
--- Location of the bundled Perl helper, relative to the plugin root.
-local HELPER_RELATIVE_PATH = "perl/neotest-prove-runner.pl"
-
-local _helper_path
---- Resolve the bundled Perl helper script. It is located relative to this
---- file rather than searched on the runtimepath, so the plugin keeps working
---- whatever directory name it was installed under.
+--- Path of the bundled Perl helper script, raising when it is missing.
 ---@return string
 local function plugin_helper_path()
-  if _helper_path then
-    return _helper_path
-  end
-  local source = debug.getinfo(1, "S").source:sub(2)
-  local plugin_root = vim.fn.fnamemodify(source, ":p:h:h:h")
-  local path = plugin_root .. "/" .. HELPER_RELATIVE_PATH
+  local path = helper.path()
   if vim.fn.filereadable(path) == 0 then
     error(("neotest-prove: bundled Perl helper not found at %s"):format(path))
   end
-  _helper_path = path
   return path
 end
 

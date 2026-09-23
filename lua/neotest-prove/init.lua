@@ -242,7 +242,7 @@ end
 local default_adapter = create_adapter(config.merge(nil))
 
 return setmetatable(default_adapter, {
-  ---@param user_config? neotest-prove.Config
+  ---@param user_config? neotest-prove.UserConfig
   ---@return neotest.Adapter
   __call = function(_, user_config)
     return create_adapter(config.merge(user_config))

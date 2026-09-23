@@ -30,17 +30,6 @@ local function ensure_perl_filetype()
   end
 end
 
---- Normalise a configured command into an argument list.
---- A string is split on whitespace; a list is copied as-is.
----@param command string|string[]
----@return string[]
-local function normalise_command(command)
-  if type(command) == "table" then
-    return vim.deepcopy(command)
-  end
-  return vim.split(command, "%s+", { trimempty = true })
-end
-
 local _helper_path
 --- Resolve the bundled Perl helper script of this plugin.
 ---@return string
@@ -183,10 +172,10 @@ local function create_adapter(opts)
 
     -- The bundled Perl helper runs `prove`, captures the raw per-file TAP it
     -- dumps, and writes structured results as JSON to `results_path`.
-    local command = normalise_command(opts.perl_command)
+    local command = config.to_argv(opts.perl_command)
     table.insert(command, plugin_helper_path())
     vim.list_extend(command, { "--results", results_path, "--" })
-    vim.list_extend(command, normalise_command(opts.prove_command))
+    vim.list_extend(command, config.to_argv(opts.prove_command))
     table.insert(command, "--merge")
     vim.list_extend(command, opts.prove_args)
     vim.list_extend(command, args.extra_args or {})
@@ -242,9 +231,12 @@ local function create_adapter(opts)
   return adapter
 end
 
-local PerlProveAdapter = create_adapter(config.merge(nil))
+-- `require("neotest-prove")` is usable directly as an adapter with the default
+-- configuration, or called with a table to build a configured one:
+-- `require("neotest-prove")({ prove_args = { "-Ilib" } })`.
+local default_adapter = create_adapter(config.merge(nil))
 
-return setmetatable(PerlProveAdapter, {
+return setmetatable(default_adapter, {
   ---@param user_config? neotest-prove.Config
   ---@return neotest.Adapter
   __call = function(_, user_config)

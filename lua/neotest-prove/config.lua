@@ -29,4 +29,15 @@ function M.merge(user_config)
   return vim.tbl_extend("force", vim.deepcopy(defaults), user_config or {})
 end
 
+--- Normalise a configured command into an argument list.
+--- A string is split on whitespace; a list is copied as-is.
+---@param command string|string[]
+---@return string[]
+function M.to_argv(command)
+  if type(command) == "table" then
+    return vim.deepcopy(command)
+  end
+  return vim.split(command, "%s+", { trimempty = true })
+end
+
 return M

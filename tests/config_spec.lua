@@ -46,3 +46,17 @@ describe("config.merge", function()
     assert.same(DEFAULT_ROOT_FILES, config.merge(nil).root_files)
   end)
 end)
+
+describe("config.to_argv", function()
+  it("splits a string on whitespace", function()
+    assert.same({ "carton", "exec", "prove" }, config.to_argv("carton  exec\tprove"))
+  end)
+
+  it("copies a list without sharing it", function()
+    local original = { "carton", "exec", "prove" }
+    local argv = config.to_argv(original)
+    assert.same(original, argv)
+    argv[1] = "changed"
+    assert.equals("carton", original[1])
+  end)
+end)

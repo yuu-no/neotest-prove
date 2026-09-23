@@ -83,7 +83,8 @@ require("neotest").setup({
 ```
 
 Top-level keys replace the defaults wholesale (lists are not merged). Unknown
-option names and values of the wrong type raise an error at setup time.
+option names, values of the wrong type, lists holding a non-string element,
+and an empty `prove_command` or `perl_command` raise an error at setup time.
 
 Run-time arguments passed to `neotest.run.run({ ..., extra_args = { ... } })`
 are appended to the `prove` command after `prove_args`.

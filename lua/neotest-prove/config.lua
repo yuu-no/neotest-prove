@@ -18,17 +18,19 @@ local M = {}
 
 -- Every option, with its default value and the types it accepts. Validation
 -- rejects typos and wrong shapes up front rather than failing obscurely when
--- a test is run.
+-- a test is run. `"string[]"` is a list (sequence) whose elements are all
+-- strings; the other names are plain Lua types. `non_empty` marks a command
+-- that has to resolve to at least one argument.
 local OPTIONS = {
-  prove_command = { default = "prove", types = { "string", "table" } },
-  prove_args = { default = {}, types = { "table" } },
-  perl_command = { default = "perl", types = { "string", "table" } },
+  prove_command = { default = "prove", types = { "string", "string[]" }, non_empty = true },
+  prove_args = { default = {}, types = { "string[]" } },
+  perl_command = { default = "perl", types = { "string", "string[]" }, non_empty = true },
   include_xt = { default = false, types = { "boolean" } },
   root_files = {
     default = { "cpanfile", "Makefile.PL", "Build.PL", "dist.ini", ".git" },
-    types = { "table" },
+    types = { "string[]" },
   },
-  extra_filter_dirs = { default = {}, types = { "table" } },
+  extra_filter_dirs = { default = {}, types = { "string[]" } },
 }
 
 ---@type neotest-prove.Config
@@ -37,13 +39,39 @@ for key, option in pairs(OPTIONS) do
   defaults[key] = option.default
 end
 
+--- Normalise a configured command into an argument list.
+--- A string is split on whitespace; a list is copied as-is.
+---@param command string|string[]
+---@return string[]
+local function to_argv(command)
+  if type(command) == "table" then
+    return vim.deepcopy(command)
+  end
+  return vim.split(command, "%s+", { trimempty = true })
+end
+
+---@param value any
+---@return boolean
+local function is_string_list(value)
+  local count = 0
+  for _, item in pairs(value) do
+    if type(item) ~= "string" then
+      return false
+    end
+    count = count + 1
+  end
+  return count == #value
+end
+
 ---@param key string
 ---@param value any
----@param option { types: string[] }
+---@param option { types: string[], non_empty?: boolean }
 local function validate_option(key, value, option)
   local types = option.types
   local lua_type = type(value)
-  if not vim.tbl_contains(types, lua_type) then
+  local accepts_list = vim.tbl_contains(types, "string[]")
+  local type_ok = vim.tbl_contains(types, lua_type) or (accepts_list and lua_type == "table")
+  if not type_ok then
     error(
       ("neotest-prove: option %q must be of type %s, got %s"):format(
         key,
@@ -52,6 +80,15 @@ local function validate_option(key, value, option)
       ),
       0
     )
+  end
+  if lua_type == "table" and not is_string_list(value) then
+    error(("neotest-prove: option %q must be a list of strings"):format(key), 0)
+  end
+  -- A command that resolves to no arguments would leave the first `prove`
+  -- argument standing in for the binary, so reject it here rather than let
+  -- the run fail with an unrelated message.
+  if option.non_empty and #to_argv(value) == 0 then
+    error(("neotest-prove: option %q must not be empty"):format(key), 0)
   end
 end
 
@@ -74,7 +111,8 @@ end
 
 --- Merge user configuration over the defaults.
 --- Top-level keys are replaced wholesale (list values are not deep-merged).
---- Raises on unknown option names or values of the wrong type.
+--- Raises on unknown option names, values of the wrong type, and empty
+--- `prove_command` / `perl_command`.
 ---@param user_config? neotest-prove.UserConfig
 ---@return neotest-prove.Config
 function M.merge(user_config)
@@ -87,15 +125,6 @@ function M.merge(user_config)
   return vim.tbl_extend("force", vim.deepcopy(defaults), user_config or {})
 end
 
---- Normalise a configured command into an argument list.
---- A string is split on whitespace; a list is copied as-is.
----@param command string|string[]
----@return string[]
-function M.to_argv(command)
-  if type(command) == "table" then
-    return vim.deepcopy(command)
-  end
-  return vim.split(command, "%s+", { trimempty = true })
-end
+M.to_argv = to_argv
 
 return M

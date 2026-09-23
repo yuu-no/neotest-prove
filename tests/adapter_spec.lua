@@ -1,49 +1,6 @@
-local Tree = require("neotest.types").Tree
-local nio = require("nio")
+local h = require("tests.helpers")
 
-local FIXTURES = vim.fn.getcwd() .. "/tests/fixtures"
-
---- Run an async function to completion from a synchronous test.
-local function sync(fn)
-  local done, value, err = false, nil, nil
-  nio.run(function()
-    local ok, res = pcall(fn)
-    if ok then
-      value = res
-    else
-      err = res
-    end
-    done = true
-  end)
-  vim.wait(10000, function()
-    return done
-  end, 20)
-  assert(done, "neotest-prove test: async operation timed out")
-  if err then
-    error(err)
-  end
-  return value
-end
-
-local function has_perl_parser()
-  return (pcall(vim.treesitter.get_string_parser, "", "perl"))
-end
-
-local function single_tree(pos)
-  return Tree.from_list({ pos }, function(p)
-    return p.id
-  end)
-end
-
-local function file_tree(path)
-  return single_tree({
-    id = path,
-    type = "file",
-    name = vim.fn.fnamemodify(path, ":t"),
-    path = path,
-    range = { 0, 0, 1, 0 },
-  })
-end
+local FIXTURES = h.FIXTURES
 
 describe("neotest-prove adapter", function()
   local adapter = require("neotest-prove")
@@ -123,7 +80,7 @@ describe("neotest-prove adapter", function()
 
   describe("discover_positions", function()
     local function discover(path)
-      return sync(function()
+      return h.sync(function()
         return adapter.discover_positions(path)
       end)
     end
@@ -139,33 +96,21 @@ describe("neotest-prove adapter", function()
       return names
     end
 
-    it("returns a file-only tree for a plain test file", function()
-      if not has_perl_parser() then
-        return pending("perl treesitter parser not installed")
-      end
+    h.it_with_parser("returns a file-only tree for a plain test file", function()
       local tree = discover(FIXTURES .. "/pass.t")
       assert.equals("file", tree:data().type)
       assert.same({}, subtest_names(tree))
     end)
 
-    it("discovers top-level subtests", function()
-      if not has_perl_parser() then
-        return pending("perl treesitter parser not installed")
-      end
+    h.it_with_parser("discovers top-level subtests", function()
       assert.same({ "alpha", "beta" }, subtest_names(discover(FIXTURES .. "/subtests.t")))
     end)
 
-    it("discovers nested subtests", function()
-      if not has_perl_parser() then
-        return pending("perl treesitter parser not installed")
-      end
+    h.it_with_parser("discovers nested subtests", function()
       assert.same({ "inner", "outer" }, subtest_names(discover(FIXTURES .. "/nested_subtest.t")))
     end)
 
-    it("discovers subtests named by an autoquoted bareword", function()
-      if not has_perl_parser() then
-        return pending("perl treesitter parser not installed")
-      end
+    h.it_with_parser("discovers subtests named by an autoquoted bareword", function()
       local tree = discover(FIXTURES .. "/bareword_subtest.t")
       assert.same({ "inner", "outer_bareword", "paren_bareword" }, subtest_names(tree))
       local ids = {}
@@ -182,20 +127,14 @@ describe("neotest-prove adapter", function()
       }, ids)
     end)
 
-    it("ignores subtests with a dynamic or interpolated name", function()
-      if not has_perl_parser() then
-        return pending("perl treesitter parser not installed")
-      end
+    h.it_with_parser("ignores subtests with a dynamic or interpolated name", function()
       assert.same(
         { "double quoted", "static one" },
         subtest_names(discover(FIXTURES .. "/dynamic_subtest.t"))
       )
     end)
 
-    it("handles an empty test file", function()
-      if not has_perl_parser() then
-        return pending("perl treesitter parser not installed")
-      end
+    h.it_with_parser("handles an empty test file", function()
       local tree = discover(FIXTURES .. "/empty.t")
       assert.equals("file", tree:data().type)
       assert.same({}, subtest_names(tree))
@@ -209,7 +148,7 @@ describe("neotest-prove adapter", function()
 
     it("builds a command running the helper and prove for a file", function()
       local path = FIXTURES .. "/pass.t"
-      local spec = adapter.build_spec({ tree = file_tree(path) })
+      local spec = adapter.build_spec({ tree = h.file_tree(path) })
       assert.is_table(spec.command)
       assert.is_string(spec.context.results_path)
       local joined = table.concat(spec.command, " ")
@@ -222,22 +161,14 @@ describe("neotest-prove adapter", function()
 
     it("runs the containing file for a subtest", function()
       local path = FIXTURES .. "/subtests.t"
-      local spec = adapter.build_spec({
-        tree = single_tree({
-          id = path .. "::alpha",
-          type = "test",
-          name = "alpha",
-          path = path,
-          range = { 0, 0, 1, 0 },
-        }),
-      })
+      local spec = adapter.build_spec({ tree = h.tree_of({ h.subtest_pos(path, "alpha") }) })
       assert.is_truthy(table.concat(spec.command, " "):find(vim.pesc(path)))
     end)
 
     it("appends prove_args and extra_args", function()
       local configured = require("neotest-prove")({ prove_args = { "-Ilib" } })
       local spec = configured.build_spec({
-        tree = file_tree(FIXTURES .. "/pass.t"),
+        tree = h.file_tree(FIXTURES .. "/pass.t"),
         extra_args = { "--timer" },
       })
       local joined = table.concat(spec.command, " ")
@@ -247,20 +178,7 @@ describe("neotest-prove adapter", function()
 
     it("includes each test file once even when positions share it", function()
       local path = FIXTURES .. "/subtests.t"
-      local tree = Tree.from_list({
-        { id = path, type = "file", name = "subtests.t", path = path, range = { 0, 0, 1, 0 } },
-        {
-          {
-            id = path .. "::alpha",
-            type = "test",
-            name = "alpha",
-            path = path,
-            range = { 0, 0, 1, 0 },
-          },
-        },
-      }, function(p)
-        return p.id
-      end)
+      local tree = h.tree_of({ h.file_pos(path), { h.subtest_pos(path, "alpha") } })
       local spec = adapter.build_spec({ tree = tree })
       local _, count = table.concat(spec.command, " "):gsub(vim.pesc(path), "")
       assert.equals(1, count)
@@ -277,7 +195,7 @@ describe("neotest-prove adapter", function()
     end
 
     local function run_results(results_path)
-      return sync(function()
+      return h.sync(function()
         return adapter.results({ context = { results_path = results_path } }, {}, nil)
       end)
     end

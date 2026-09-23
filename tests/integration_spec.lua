@@ -1,40 +1,7 @@
-local Tree = require("neotest.types").Tree
-local nio = require("nio")
+local h = require("tests.helpers")
 
 local adapter = require("neotest-prove")
-local FIXTURES = vim.fn.getcwd() .. "/tests/fixtures"
-
---- Run an async function to completion from a synchronous test.
-local function sync(fn)
-  local done, value, err = false, nil, nil
-  nio.run(function()
-    local ok, res = pcall(fn)
-    if ok then
-      value = res
-    else
-      err = res
-    end
-    done = true
-  end)
-  vim.wait(30000, function()
-    return done
-  end, 25)
-  assert(done, "neotest-prove integration test: timed out")
-  if err then
-    error(err)
-  end
-  return value
-end
-
-local function file_pos(path)
-  return {
-    id = path,
-    type = "file",
-    name = vim.fn.fnamemodify(path, ":t"),
-    path = path,
-    range = { 0, 0, 1, 0 },
-  }
-end
+local FIXTURES = h.FIXTURES
 
 --- Build a spec from a tree, run its command, and return mapped results.
 local function run_tree(tree, adp)
@@ -42,18 +9,13 @@ local function run_tree(tree, adp)
   local spec = adp.build_spec({ tree = tree })
   assert(spec, "build_spec returned nil")
   local completed = vim.system(spec.command, { cwd = spec.cwd, text = true }):wait()
-  return sync(function()
-    return adapter.results(spec, { code = completed.code, output = "" }, tree)
+  return h.sync(function()
+    return adp.results(spec, { code = completed.code, output = "" }, tree)
   end)
 end
 
 local function run_file(path, adp)
-  return run_tree(
-    Tree.from_list({ file_pos(path) }, function(p)
-      return p.id
-    end),
-    adp
-  )
+  return run_tree(h.file_tree(path), adp)
 end
 
 describe("neotest-prove integration", function()
@@ -82,13 +44,11 @@ describe("neotest-prove integration", function()
     local dir = FIXTURES .. "/projects/sample/t"
     local pass = dir .. "/pass.t"
     local fail = dir .. "/fail.t"
-    local tree = Tree.from_list({
+    local tree = h.tree_of({
       { id = dir, type = "dir", name = "t", path = dir, range = { 0, 0, 0, 0 } },
-      { file_pos(pass) },
-      { file_pos(fail) },
-    }, function(p)
-      return p.id
-    end)
+      { h.file_pos(pass) },
+      { h.file_pos(fail) },
+    })
     local results = run_tree(tree)
     assert.equals("passed", results[pass].status)
     assert.equals("failed", results[fail].status)

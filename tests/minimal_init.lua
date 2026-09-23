@@ -21,6 +21,9 @@ for name, url in pairs(deps) do
 end
 
 vim.opt.runtimepath:prepend(root)
+-- Lets the specs `require("tests.helpers")`; the runtimepath only exposes
+-- `lua/` subdirectories to `require`.
+package.path = root .. "?.lua;" .. package.path
 vim.opt.swapfile = false
 
 vim.cmd("runtime! plugin/plenary.vim")

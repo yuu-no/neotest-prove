@@ -17,11 +17,17 @@ use File::Find ();
 use POSIX qw(WEXITSTATUS WIFSIGNALED WTERMSIG);
 use TAP::Parser ();
 
-# Failure-location fragment shared by every "at FILE line N" form in
-# `parse_subtests`, so the diagnostic-folding blacklist and the dispatch
-# branches cannot drift apart. Captures the file and the line number.
-# Declared up here because the TAP parsing below runs before later file-scope
-# statements.
+# TAP fragments shared by the parsing subs below, so the places that match
+# the same thing cannot drift apart. Declared up here because the TAP parsing
+# below runs before later file-scope statements.
+#
+# The leading part of a TAP test line, up to its description: captures the
+# "not " of a failure (undef on a pass); the description and any directive
+# follow the match.
+my $OK_LINE = qr/^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?/;
+
+# Failure-location fragment of every "at FILE line N" form. Captures the file
+# and the line number.
 my $AT_LINE = qr/at\s+(\S+)\s+line\s+(\d+)/;
 
 my ( $results_path, @prove_cmd );
@@ -162,37 +168,15 @@ sub parse_subtests {
         }
 
         if ( $line =~ /^\s*#\s*Subtest:\s*(.+?)\s*$/ ) {
-            my $name  = $1;
-            my @names = map { $_->{name} } @stack;
-            push @names, $name;
-            push @stack,
-              {
-                name           => $name,
-                marker_indent  => $indent,
-                content_indent => $indent + 4,
-                names          => \@names,
-                errors         => [],
-              };
+            open_subtest( \@stack, $1, $indent );
             next;
         }
 
-        if (   $brace_open->{$i}
-            && $line =~ /^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?(.*?)\s*\{\s*$/ )
-        {
+        if ( $brace_open->{$i} && $line =~ /$OK_LINE(.*?)\s*\{\s*$/ ) {
             my $failed = defined $1;
             my ( $name, $directive ) = split_desc($2);
-            my @names = map { $_->{name} } @stack;
-            push @names, $name;
-            push @stack,
-              {
-                name           => $name,
-                marker_indent  => $indent,
-                content_indent => $indent + 4,
-                names          => \@names,
-                errors         => [],
-                brace          => 1,
-                status         => tap_status( $directive, $failed ),
-              };
+            open_subtest( \@stack, $name, $indent,
+                brace => 1, status => tap_status( $directive, $failed ) );
             next;
         }
 
@@ -201,11 +185,7 @@ sub parse_subtests {
                 && $stack[-1]{brace}
                 && $indent == $stack[-1]{marker_indent} )
             {
-                my $st = pop @stack;
-                $file->{subtests}{ join '::', @{ $st->{names} } } = {
-                    status => $st->{status},
-                    errors => $st->{errors},
-                };
+                close_subtest( $file, \@stack, $stack[-1]{status} );
             }
             next;
         }
@@ -219,7 +199,7 @@ sub parse_subtests {
             next;
         }
 
-        if ( $line =~ /^\s*(not\s+)?ok\b\s*\d*\s*(?:-\s*)?(.*)$/ ) {
+        if ( $line =~ /$OK_LINE(.*)$/ ) {
             my $failed = defined $1;
             my ( $desc, $directive ) = split_desc($2);
             if (   @stack
@@ -227,11 +207,7 @@ sub parse_subtests {
                 && $indent == $stack[-1]{marker_indent}
                 && $desc eq $stack[-1]{name} )
             {
-                my $st = pop @stack;
-                $file->{subtests}{ join '::', @{ $st->{names} } } = {
-                    status => tap_status( $directive, $failed ),
-                    errors => $st->{errors},
-                };
+                close_subtest( $file, \@stack, tap_status( $directive, $failed ) );
             }
             next;
         }
@@ -267,6 +243,36 @@ sub parse_subtests {
     }
 }
 
+# Push a newly opened subtest onto the stack. Its body is expected 4 spaces
+# deeper than the line that opened it. `%extra` carries the Test2 brace-style
+# specifics (`brace`, `status`), which the Test::More form does not have.
+sub open_subtest {
+    my ( $stack, $name, $indent, %extra ) = @_;
+    my @names = map { $_->{name} } @$stack;
+    push @names, $name;
+    push @$stack,
+      {
+        name           => $name,
+        marker_indent  => $indent,
+        content_indent => $indent + 4,
+        names          => \@names,
+        errors         => [],
+        %extra,
+      };
+    return;
+}
+
+# Pop the innermost subtest and record it under its `::`-joined name path.
+sub close_subtest {
+    my ( $file, $stack, $status ) = @_;
+    my $st = pop @$stack;
+    $file->{subtests}{ join '::', @{ $st->{names} } } = {
+        status => $status,
+        errors => $st->{errors},
+    };
+    return;
+}
+
 # Determine which "(not )?ok ... {" lines are genuine Test2::V0 subtest
 # openers, by pairing them with a later bare "}" at the same indent. Any
 # candidate that reaches end-of-file unmatched -- e.g. a plain assertion
@@ -282,7 +288,7 @@ sub find_brace_pairs {
         my ($ws) = $line =~ /^(\s*)/;
         my $indent = length $ws;
 
-        if ( $line =~ /^\s*(?:not\s+)?ok\b\s*\d*\s*(?:-\s*)?.*?\{\s*$/ ) {
+        if ( $line =~ /$OK_LINE.*?\{\s*$/ ) {
             push @stack, { indent => $indent, idx => $i };
             next;
         }

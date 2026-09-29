@@ -21,6 +21,15 @@ my $have_test2 = do {
     system("$^X -MTest2::V0 -e1 >$devnull 2>&1") == 0;
 };
 
+# Test::More only started labelling subtest output with the `# Subtest: NAME`
+# header in 1.001014 (core since perl 5.22). The helper
+# keys on that header, so with anything older a Test::More subtest is invisible
+# to it and its results fold into the file result. That is a documented
+# limitation, not a parser bug, so the fixtures that depend on the header skip
+# themselves. The Test2 fixtures are unaffected; they use the brace form.
+my $have_subtest_header = eval { Test::More->VERSION('1.001014'); 1 };
+my $no_subtest_header   = 'Test::More is older than 1.001014; subtests are unlabelled';
+
 # Run the helper over the given fixtures and return the decoded JSON results.
 sub run_helper {
     my (@test_files) = @_;
@@ -85,6 +94,7 @@ subtest 'failing assertion with no description still records a line number' => s
 };
 
 subtest 'subtest results' => sub {
+    plan skip_all => $no_subtest_header unless $have_subtest_header;
     my $file = file_entry( run_helper('subtests.t'), 'subtests.t' );
     is $file->{status}, 'failed', 'file with a failing subtest is failed';
     is $file->{subtests}{alpha}{status}, 'passed', 'alpha subtest passed';
@@ -97,6 +107,7 @@ subtest 'subtest results' => sub {
 };
 
 subtest 'nested subtest results' => sub {
+    plan skip_all => $no_subtest_header unless $have_subtest_header;
     my $file = file_entry( run_helper('nested_subtest.t'), 'nested_subtest.t' );
     is $file->{subtests}{outer}{status}, 'passed', 'outer subtest passed';
     is $file->{subtests}{'outer::inner'}{status}, 'passed', 'nested inner subtest passed';
@@ -130,6 +141,7 @@ subtest 'an assertion description ending in a literal brace does not open a phan
 };
 
 subtest 'a subtest whose name contains a "#" is recorded under that name' => sub {
+    plan skip_all => $no_subtest_header unless $have_subtest_header;
     my $file = file_entry( run_helper('hash_subtest.t'), 'hash_subtest.t' );
     is_deeply [ sort keys %{ $file->{subtests} } ], [ 'after', 'has # hash' ],
       'both subtests are recorded, and the "#" one does not swallow the next';
@@ -137,6 +149,7 @@ subtest 'a subtest whose name contains a "#" is recorded under that name' => sub
 };
 
 subtest 'a failure reported in another file carries no line number' => sub {
+    plan skip_all => $no_subtest_header unless $have_subtest_header;
     my $file = file_entry( run_helper('helper_failure.t'), 'helper_failure.t' );
     my $err = $file->{subtests}{'uses helper'}{errors}[0];
     is $err->{line}, undef, 'a failure located in the helper module is not anchored to a line';

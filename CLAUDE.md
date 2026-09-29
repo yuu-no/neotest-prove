@@ -35,7 +35,7 @@ The tree-sitter query in `query.lua` only matches subtests whose first argument 
 # Run the Perl helper's own tests.
 prove -v perl/t
 
-# Format Lua sources (matches CI's `stylua --check lua tests`).
+# Format Lua sources; CI runs `./scripts/style --check` inside `nix develop`.
 ./scripts/style
 
 # Enter the devShell (stylua, luacheck, perl with Test2::V0) pinned by flake.lock.
@@ -52,7 +52,8 @@ Notes:
 
 ## Conventions
 
-- **stylua** (`stylua.toml`): 2-space indent, 100-col width, `AutoPreferDouble` quotes. CI fails on `stylua --check lua tests`.
+- **stylua** (`stylua.toml`): 2-space indent, 100-col width, `AutoPreferDouble` quotes. CI fails on `./scripts/style --check`.
+- **Nix is for tool identity only.** `flake.nix` is a devShell (`mkShellNoCC`) and nothing else; only the `style` CI job goes through it, so the stylua version lives in `flake.lock` alone. Don't pin stylua anywhere else, and don't move the test jobs onto nix — they deliberately track Neovim stable and the distribution's perl.
 - **Perl helper stays on core modules only** (Perl 5.14+). No CPAN deps. The floor is derived from the newest core module it loads (`TAP::Parser` → 5.10.1, `JSON::PP` → 5.14); don't raise it without a module that needs it. CI runs `perl/t` against the floor in a `perl:5.14` container.
 - **Subtest-level results need Test::More 1.001014+** (core since 5.22) — that is when subtest output gained the `# Subtest: NAME` header `parse_subtests` keys on. This is a requirement on the *user's* test files, not on the helper's perl, and is tracked separately from the floor above. Test2::V0 is unaffected.
 - The helper's `--results <path> -- <prove-cmd> [args...]` argument shape is part of the contract with `adapter.build_spec`; the `--` separator is required.

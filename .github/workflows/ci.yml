@@ -11,11 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: JohnnyMorganz/stylua-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          version: latest
-          args: --check lua tests
+      # stylua comes from the flake's devShell, so its version is the one
+      # flake.lock pins -- the same binary `./scripts/style` runs locally.
+      # Pinning it here as well would give two versions to keep in step, and
+      # a formatter that differs by a release reformats code. This is the only
+      # job that goes through nix: the others deliberately track what users
+      # run (Neovim stable, the distribution's perl) rather than a lock file.
+      - uses: cachix/install-nix-action@v31
+      - name: Check formatting
+        run: nix develop -c sh -c 'stylua --version && ./scripts/style --check'
 
   perl:
     name: perl helper tests
@@ -26,6 +30,8 @@ jobs:
       # and ubuntu-latest still ships 5.38 -- without it the Test2 fixtures
       # skip themselves and that half of the TAP parser goes unverified.
       # Drop this step once the runner image is on perl 5.40 or newer.
+      # Taking Test2::Suite from apt rather than the flake is deliberate: this
+      # job tests the helper against the perl a distribution ships.
       - name: Install Test2::Suite
         run: sudo apt-get update && sudo apt-get install -y libtest2-suite-perl
       - name: Run helper tests

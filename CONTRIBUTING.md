@@ -48,7 +48,8 @@ changing the shape means changing that structure and `adapter.results` in
 ## Development tools
 
 `flake.nix` provides a devShell with stylua, luacheck and a perl recent
-enough to have Test2::V0 in core. Their versions are pinned by `flake.lock`:
+enough to have Test2::V0 in core. Their versions are pinned by `flake.lock`,
+and CI's formatting check runs through the same shell:
 
 ```bash
 nix develop            # or `use flake` in an .envrc, with direnv
@@ -104,7 +105,7 @@ Notes:
 
 - Lua is formatted with [stylua](https://github.com/JohnnyMorganz/StyLua)
   using the settings in `stylua.toml`. Run `./scripts/style`; CI runs
-  `stylua --check lua tests`.
+  `./scripts/style --check` with the stylua from `flake.lock`.
 - The Perl helper uses 4-space indentation and the aligned, perltidy-like
   layout of the existing code. Match it; there is no enforced formatter.
 - Commit messages follow the

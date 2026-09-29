@@ -15,7 +15,8 @@
     {
       # Tools only. Neovim and the test dependencies are deliberately left out:
       # CI tests against the Neovim release users run, and tests/minimal_init.lua
-      # pins the plugins. The versions here are fixed by flake.lock.
+      # pins the plugins. The versions here are fixed by flake.lock, which is
+      # also what CI's stylua check runs through.
       devShells = forAllSystems (
         system:
         let

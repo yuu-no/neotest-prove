@@ -71,17 +71,29 @@ local function check_command(label, command)
   return nil
 end
 
+--- Run the configured perl over a one-liner and return its trimmed output.
+---@param command string|string[]
+---@param program string
+---@return string|nil output nil when perl exited non-zero
+---@return string output_on_failure whatever perl wrote, for the report
+local function perl_eval(command, program)
+  local argv = config.to_argv(command)
+  vim.list_extend(argv, { "-e", program })
+  local output = vim.trim(vim.fn.system(argv))
+  if vim.v.shell_error ~= 0 then
+    return nil, output
+  end
+  return output, output
+end
+
 --- Report the version of the configured perl and whether it is new enough.
 ---@param command string|string[]
 local function check_perl_version(command)
-  local argv = config.to_argv(command)
-  vim.list_extend(argv, { "-e", "print $]" })
-  local output = vim.fn.system(argv)
-  if vim.v.shell_error ~= 0 then
-    warn("could not determine the perl version", { vim.trim(output) })
+  local version, output = perl_eval(command, "print $]")
+  if not version then
+    warn("could not determine the perl version", { output })
     return
   end
-  local version = vim.trim(output)
   if tonumber(version) and tonumber(version) >= tonumber(MIN_PERL) then
     ok(("perl version %s (>= %s required)"):format(version, MIN_PERL))
   else

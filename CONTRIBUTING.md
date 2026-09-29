@@ -39,8 +39,10 @@ helper writes to the path given by `--results`:
 Nested subtest keys are `::`-joined; the adapter maps them to neotest
 position IDs of the form `<file>::<outer>::<inner>`. Error `line` is
 1-indexed in the JSON (or `null` when the failure was reported in another
-file); the Lua side converts it to 0-indexed. If you change the shape, update
-`encode_*` in the helper and `adapter.results` in `init.lua` together.
+file); the Lua side converts it to 0-indexed. The helper builds this document
+as a plain Perl data structure and hands it to `JSON::PP` in `json_out`, so
+changing the shape means changing that structure and `adapter.results` in
+`init.lua` together.
 
 ## Running the tests
 

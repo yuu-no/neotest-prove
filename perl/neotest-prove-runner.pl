@@ -22,6 +22,7 @@ no feature 'unicode_strings';
 
 use File::Temp ();
 use File::Find ();
+use JSON::PP ();
 use POSIX qw(WEXITSTATUS WIFSIGNALED WTERMSIG);
 use TAP::Parser ();
 
@@ -392,66 +393,37 @@ sub read_file {
 sub write_json {
     my ( $path, $files ) = @_;
     open my $fh, '>', $path or die "neotest-prove: cannot write $path: $!\n";
-    print {$fh} encode_files($files);
+    print {$fh} json_out($files);
     close $fh;
 }
 
-sub encode_files {
+# Encode the results document.
+#
+# JSON::PP is deliberately used without `->utf8`: the messages come from raw
+# TAP, and a test is free to print bytes that are not valid UTF-8. Asking
+# JSON::PP to encode characters would make the helper die on such a file.
+# Without the flag every byte stays a character below 256 and is written back
+# out unchanged, so the adapter receives exactly what the test printed.
+#
+# `->canonical` keeps the output stable across runs, which matters because the
+# results file is the only thing the Lua side sees.
+sub json_out {
     my ($files) = @_;
-    my @parts;
-    for my $path ( sort keys %$files ) {
-        push @parts, json_str($path) . ':' . encode_file( $files->{$path} );
+    for my $file ( values %$files ) {
+        numify_lines( $file->{errors} );
+        numify_lines( $_->{errors} ) for values %{ $file->{subtests} };
     }
-    return '{"files":{' . join( ',', @parts ) . '}}';
-}
-
-sub encode_file {
-    my ($f) = @_;
-    my @subs;
-    for my $key ( sort keys %{ $f->{subtests} } ) {
-        push @subs, json_str($key) . ':' . encode_result( $f->{subtests}{$key} );
-    }
-    return
-        '{"status":'
-      . json_str( $f->{status} )
-      . ',"errors":'
-      . encode_errors( $f->{errors} )
-      . ',"subtests":{'
-      . join( ',', @subs ) . '}}';
-}
-
-sub encode_result {
-    my ($r) = @_;
-    return
-        '{"status":'
-      . json_str( $r->{status} )
-      . ',"errors":'
-      . encode_errors( $r->{errors} ) . '}';
+    return JSON::PP->new->canonical->encode( { files => $files } );
 }
 
 # `line` is null for a failure whose reported location is not in this test
 # file; the Lua side leaves such an error unanchored rather than pinning it to
-# an arbitrary line.
-sub encode_errors {
+# an arbitrary line. The defined ones are numified so that they encode as JSON
+# numbers rather than as strings captured out of the TAP.
+sub numify_lines {
     my ($errors) = @_;
-    return '['
-      . join( ',',
-        map {
-                '{"message":'
-              . json_str( $_->{message} )
-              . ',"line":'
-              . ( defined $_->{line} ? $_->{line} + 0 : 'null' ) . '}'
-        } @$errors )
-      . ']';
-}
-
-sub json_str {
-    my ($s) = @_;
-    $s = '' unless defined $s;
-    $s =~ s/([\\"])/\\$1/g;
-    $s =~ s/\n/\\n/g;
-    $s =~ s/\r/\\r/g;
-    $s =~ s/\t/\\t/g;
-    $s =~ s/([\x00-\x1f])/sprintf '\\u%04x', ord $1/ge;
-    return '"' . $s . '"';
+    for my $error (@$errors) {
+        $error->{line} += 0 if defined $error->{line};
+    }
+    return;
 }

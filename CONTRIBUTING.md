@@ -46,7 +46,7 @@ file); the Lua side converts it to 0-indexed. If you change the shape, update
 
 ```bash
 # Lua test suite. Bootstraps neotest, nvim-nio, plenary and nvim-treesitter
-# into .tests/ on first run.
+# into .tests/, at the revisions pinned in tests/minimal_init.lua.
 ./scripts/test
 
 # A single spec file.
@@ -64,6 +64,22 @@ Notes:
   5.40. The helper tests skip them when it is not installed.
 - `scripts/test` post-processes plenary's output because plenary does not
   exit non-zero on setup errors. Don't replace it with a bare `nvim` call.
+- **Test dependencies are pinned.** The `deps` table in
+  `tests/minimal_init.lua` holds a `rev` per dependency, and the bootstrap
+  checks out exactly that revision — including over an existing `.tests/`
+  whose checkout has drifted. CI uses the same bootstrap rather than cloning
+  its own copies, so a green CI run and your working copy mean the same
+  thing. Nothing updates the revisions automatically; to move one, edit its
+  `rev`, run the suite, and commit that as its own change:
+
+  ```bash
+  # Latest upstream revision of a dependency.
+  git ls-remote https://github.com/nvim-neotest/neotest HEAD
+  ```
+
+  The flip side is that upstream breakage is not noticed until someone bumps
+  a revision. That is the intended trade-off: a red CI run should mean this
+  repository changed, not that a dependency moved overnight.
 
 ## Style
 

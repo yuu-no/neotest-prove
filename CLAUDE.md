@@ -26,7 +26,7 @@ The tree-sitter query in `query.lua` only matches subtests whose first argument 
 ## Common commands
 
 ```bash
-# Run the full Lua test suite (bootstraps deps into .tests/ on first run).
+# Run the full Lua test suite (bootstraps pinned deps into .tests/).
 ./scripts/test
 
 # Run a single Lua spec file.
@@ -45,6 +45,7 @@ Notes:
 - The Lua test suite needs the `perl` tree-sitter parser for the discovery tests. `it_with_parser()` in `tests/helpers.lua` marks those pending when the parser is missing; CI installs it explicitly.
 - Shared spec helpers live in `tests/helpers.lua` (`require("tests.helpers")`; `tests/minimal_init.lua` puts the repo root on `package.path`). Plenary only runs `*_spec.lua`, so it is never executed as a spec.
 - `.tests/` and `.tmp/` are gitignored caches; don't commit them.
+- Test deps are **pinned** by the `deps` table in `tests/minimal_init.lua` (one `rev` each), and the bootstrap force-checks-out that revision even over an existing `.tests/`. CI has no clone step of its own — it runs the same bootstrap. Bumping a `rev` is a deliberate, standalone change; don't bump one incidentally while fixing something else.
 
 ## Conventions
 

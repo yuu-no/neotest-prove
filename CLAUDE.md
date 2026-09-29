@@ -51,5 +51,6 @@ Notes:
 
 - **stylua** (`stylua.toml`): 2-space indent, 100-col width, `AutoPreferDouble` quotes. CI fails on `stylua --check lua tests`.
 - **Perl helper stays on core modules only** (Perl 5.14+). No CPAN deps. The floor is derived from the newest core module it loads (`TAP::Parser` → 5.10.1, `JSON::PP` → 5.14); don't raise it without a module that needs it. CI runs `perl/t` against the floor in a `perl:5.14` container.
+- **Subtest-level results need Test::More 1.001014+** (core since 5.22) — that is when subtest output gained the `# Subtest: NAME` header `parse_subtests` keys on. This is a requirement on the *user's* test files, not on the helper's perl, and is tracked separately from the floor above. Test2::V0 is unaffected.
 - The helper's `--results <path> -- <prove-cmd> [args...]` argument shape is part of the contract with `adapter.build_spec`; the `--` separator is required.
 - User-facing docs live in three places that must stay in sync: `README.md`, `doc/neotest-prove.txt` (vimdoc, CI runs `helptags` on it), and `CHANGELOG.md` (Keep a Changelog; add an entry under Unreleased for user-visible changes).

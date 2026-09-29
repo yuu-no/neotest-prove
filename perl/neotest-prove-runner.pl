@@ -10,6 +10,12 @@
 #
 # Only core modules are used. The floor is Perl 5.14: TAP::Parser entered core
 # in 5.10.1 and JSON::PP in 5.14, and those are the newest modules used here.
+#
+# Note that subtest-level results additionally need the test file's own
+# Test::More to be 1.001014 or newer (core since Perl 5.22), because that is
+# when subtest output gained the `# Subtest: NAME` header this parser keys on.
+# Older Test::More still runs fine; its subtests just fold into the file
+# result. Test2::V0 needs no such minimum -- it uses the brace form.
 
 use strict;
 use warnings;

@@ -13,7 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/).
   per-subtest results with failure messages and line numbers.
 - Support for both Test::More (`# Subtest:` comment) and Test2::V0
   (brace-style) subtest output, including nested subtests and subtests
-  skipped in their entirety.
+  skipped in their entirety. Test::More only emits that comment from
+  1.001014 onwards (core since Perl 5.22); with anything older the subtests
+  still run and their results fold into the file result.
 - Discovery of subtests named by a single-quoted string, a double-quoted
   string without interpolation, or an autoquoted bareword.
 - Failure diagnostics (`got:` / `expected:`, comparison tables) are folded

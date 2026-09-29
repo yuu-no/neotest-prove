@@ -37,6 +37,9 @@ prove -v perl/t
 
 # Format Lua sources (matches CI's `stylua --check lua tests`).
 ./scripts/style
+
+# Enter the devShell (stylua, luacheck, perl with Test2::V0) pinned by flake.lock.
+nix develop
 ```
 
 Notes:

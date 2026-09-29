@@ -17,6 +17,7 @@ to respect.
 | `perl/t/` | Tests for the helper (run with `prove`). |
 | `tests/` | Lua test suite (plenary busted), shared spec helpers (`tests/helpers.lua`), and fixtures. |
 | `doc/neotest-prove.txt` | Vim help. Keep it in sync with `README.md`. |
+| `flake.nix`, `flake.lock` | Nix devShell pinning the development tools (stylua, luacheck, perl). |
 
 The adapter is split across Lua and Perl. The seam is a JSON document the
 helper writes to the path given by `--results`:
@@ -43,6 +44,22 @@ file); the Lua side converts it to 0-indexed. The helper builds this document
 as a plain Perl data structure and hands it to `JSON::PP` in `json_out`, so
 changing the shape means changing that structure and `adapter.results` in
 `init.lua` together.
+
+## Development tools
+
+`flake.nix` provides a devShell with stylua, luacheck and a perl recent
+enough to have Test2::V0 in core. Their versions are pinned by `flake.lock`:
+
+```bash
+nix develop            # or `use flake` in an .envrc, with direnv
+./scripts/style --check
+```
+
+Nix is optional: the scripts only need the tools on `PATH`. Without it,
+formatting may differ from CI if your stylua is a different release. Neovim is
+not in the shell; the Lua suite runs against whichever `nvim` you have, as CI
+runs against the current stable release. Update the pinned tools with
+`nix flake update`, as a change of its own.
 
 ## Running the tests
 

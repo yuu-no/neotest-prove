@@ -31,6 +31,27 @@ jobs:
       - name: Run helper tests
         run: prove -v perl/t
 
+  perl-floor:
+    name: perl helper tests (5.14 floor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The helper claims to work on perl 5.14 (the version that brought
+      # JSON::PP into core); this job is what makes that claim true rather
+      # than aspirational. Run it through `docker run` rather than a job-level
+      # `container:` so the workflow's own actions keep using the runner's
+      # node -- buster is too old to host a current actions runtime.
+      #
+      # Both fixture families that need newer modules skip themselves there:
+      # Test2::V0 is not core until 5.40, and 5.14's Test::More 0.98 predates
+      # the `# Subtest:` header the parser keys on. What still runs is the
+      # end-to-end path -- TAP::Parser, the helper's own parsing, and JSON::PP
+      # -- on the oldest perl supported.
+      - name: Run helper tests on the oldest supported perl
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo perl:5.14.4-buster \
+            prove -v perl/t
+
   lua:
     name: lua tests
     runs-on: ubuntu-latest

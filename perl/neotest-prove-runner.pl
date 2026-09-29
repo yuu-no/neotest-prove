@@ -8,10 +8,18 @@
 #
 # Usage: perl neotest-prove-runner.pl --results <json> -- <prove> [args...]
 #
-# Only core modules are used (Perl 5.10.1+). JSON is hand-encoded.
+# Only core modules are used. The floor is Perl 5.14: TAP::Parser entered core
+# in 5.10.1 and JSON::PP in 5.14, and those are the newest modules used here.
 
 use strict;
 use warnings;
+use 5.014;
+
+# The 5.014 feature bundle turns on `unicode_strings`, which would make `\s`
+# and friends treat bytes 0x80-0xff in the raw TAP as Unicode. This parser is
+# deliberately byte-oriented (see `json_out` below), so keep the old semantics.
+no feature 'unicode_strings';
+
 use File::Temp ();
 use File::Find ();
 use POSIX qw(WEXITSTATUS WIFSIGNALED WTERMSIG);

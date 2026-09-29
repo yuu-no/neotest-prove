@@ -95,7 +95,11 @@ Notes:
 ## Constraints
 
 - **The Perl helper uses core modules only** and must keep working on Perl
-  5.10.1. No CPAN dependencies; that is why JSON is hand-encoded.
+  5.14. No CPAN dependencies. The floor is derived, not chosen: `TAP::Parser`
+  entered core in 5.10.1 and `JSON::PP` in 5.14, and those are the newest
+  modules the helper loads. Don't raise it without a module that needs it.
+  CI runs `perl/t` against the floor in a `perl:5.14` container, so a newer
+  feature slipping in is caught there.
 - **Subtests are matched statically.** The tree-sitter query only emits
   subtests whose name is a literal string or bareword. Don't extend it to
   computed names without a plan for what neotest should do with positions

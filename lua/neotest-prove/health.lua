@@ -26,8 +26,9 @@ local warn = reporter("warn", "report_warn")
 local report_error = reporter("error", "report_error")
 local info = reporter("info", "report_info")
 
--- Oldest Perl the bundled helper is written for.
-local MIN_PERL = "5.010001"
+-- Oldest Perl the bundled helper is written for: JSON::PP, the newest core
+-- module it loads, arrived in 5.14.
+local MIN_PERL = "5.014000"
 
 --- Collect the configurations of every neotest-prove adapter registered with
 --- neotest. Falls back to the defaults when neotest is not set up (yet).

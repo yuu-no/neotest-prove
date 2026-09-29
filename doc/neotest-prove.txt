@@ -31,7 +31,7 @@ Both Test::More and Test2::V0 style subtests are understood.
 
 - Neovim with |neotest| and its dependencies (nvim-nio, plenary.nvim).
 - `prove` on your `$PATH` (ships with Perl's Test::Harness).
-- Perl 5.10.1 or newer. No CPAN modules beyond the Perl core are needed.
+- Perl 5.14 or newer. No CPAN modules beyond the Perl core are needed.
 - The `perl` tree-sitter parser, for subtest discovery. Install it with
   `:TSInstall perl` from nvim-treesitter. Without it only whole files are
   shown as test positions.

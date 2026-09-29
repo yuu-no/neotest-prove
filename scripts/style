@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Format Lua sources with stylua.
+# Format Lua sources with stylua. Extra arguments are passed through, so
+# `./scripts/style --check` is the check CI runs.
 set -euo pipefail
 
-stylua lua tests
+exec stylua "$@" lua tests

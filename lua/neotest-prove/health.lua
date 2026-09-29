@@ -30,6 +30,15 @@ local info = reporter("info", "report_info")
 -- module it loads, arrived in 5.14.
 local MIN_PERL = "5.014000"
 
+-- Core modules the helper loads, with the package that carries them on RHEL
+-- and its derivatives. A new enough perl is not sufficient on its own there:
+-- the Perl core is split across packages, so `perl` can be recent and still
+-- be missing either of these.
+local HELPER_MODULES = {
+  { module = "TAP::Parser", package = "perl-Test-Harness" },
+  { module = "JSON::PP", package = "perl-JSON-PP" },
+}
+
 --- Collect the configurations of every neotest-prove adapter registered with
 --- neotest. Falls back to the defaults when neotest is not set up (yet).
 ---@return neotest-prove.Config[]
@@ -101,6 +110,23 @@ local function check_perl_version(command)
   end
 end
 
+--- Report whether each core module the helper loads is actually installed.
+---@param command string|string[]
+local function check_helper_modules(command)
+  for _, entry in ipairs(HELPER_MODULES) do
+    local program = ("require %s; print $%s::VERSION"):format(entry.module, entry.module)
+    local version = perl_eval(command, program)
+    if version then
+      ok(("%s %s is available"):format(entry.module, version))
+    else
+      report_error(("%s is not installed for this perl"):format(entry.module), {
+        "It is part of the Perl core, but some distributions package it apart",
+        ("from the interpreter. On RHEL and derivatives: install %s."):format(entry.package),
+      })
+    end
+  end
+end
+
 local function check_helper()
   local path = helper.path()
   if vim.fn.filereadable(path) == 1 then
@@ -143,6 +169,7 @@ function M.check()
     check_command("prove_command", cfg.prove_command)
     if check_command("perl_command", cfg.perl_command) then
       check_perl_version(cfg.perl_command)
+      check_helper_modules(cfg.perl_command)
     end
   end
 end

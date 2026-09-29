@@ -21,7 +21,9 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Failures reported from another file (for example a helper module) keep
   their location in the message instead of being pinned to a wrong line.
 - `:checkhealth neotest-prove` verifies `perl`, `prove`, the bundled helper,
-  and the tree-sitter parser.
+  and the tree-sitter parser. It also reports whether the core modules the
+  helper loads (`TAP::Parser`, `JSON::PP`) are actually installed — some
+  distributions package them apart from the interpreter.
 - Configuration is validated: unknown options, wrong value types, list
   options containing non-string elements, and an empty `prove_command` or
   `perl_command` raise an error at setup time.

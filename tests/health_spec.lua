@@ -29,6 +29,8 @@ describe("neotest-prove health", function()
     assert.is_truthy(report:find("ok: bundled helper found", 1, true))
     assert.is_truthy(report:find("ok: prove_command: `prove` is executable", 1, true))
     assert.is_truthy(report:find("ok: perl version", 1, true))
+    assert.is_truthy(report:find("ok: TAP::Parser ", 1, true))
+    assert.is_truthy(report:find("ok: JSON::PP ", 1, true))
   end)
 
   it("reports on the adapters registered with neotest", function()

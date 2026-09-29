@@ -31,6 +31,9 @@ describe("neotest-prove health", function()
     assert.is_truthy(report:find("ok: perl version", 1, true))
     assert.is_truthy(report:find("ok: TAP::Parser ", 1, true))
     assert.is_truthy(report:find("ok: JSON::PP ", 1, true))
+    -- Reported as ok, warn or info depending on the Test::More installed for
+    -- the perl running the suite, so only assert that it is reported at all.
+    assert.is_truthy(report:find("Test::More", 1, true))
   end)
 
   it("reports on the adapters registered with neotest", function()

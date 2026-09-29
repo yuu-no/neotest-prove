@@ -39,6 +39,11 @@ local HELPER_MODULES = {
   { module = "JSON::PP", package = "perl-JSON-PP" },
 }
 
+-- Test::More only started emitting the `# Subtest: NAME` header that the
+-- helper keys on in 1.001014 (core since Perl 5.22). Older versions run
+-- fine; their subtests just fold into the file result.
+local MIN_TEST_MORE = "1.001014"
+
 --- Collect the configurations of every neotest-prove adapter registered with
 --- neotest. Falls back to the defaults when neotest is not set up (yet).
 ---@return neotest-prove.Config[]
@@ -127,6 +132,28 @@ local function check_helper_modules(command)
   end
 end
 
+--- Report whether Test::More is new enough to emit the subtest header that
+--- the helper needs to report subtest-level results.
+---@param command string|string[]
+local function check_test_more(command)
+  local version = perl_eval(command, "require Test::More; print $Test::More::VERSION")
+  if not version then
+    info("Test::More is not installed for this perl; only Test2::V0 subtests will be reported")
+    return
+  end
+  if tonumber(version) and tonumber(version) >= tonumber(MIN_TEST_MORE) then
+    ok(("Test::More %s reports subtests (>= %s)"):format(version, MIN_TEST_MORE))
+  else
+    warn(("Test::More %s is older than %s"):format(version, MIN_TEST_MORE), {
+      "Its subtests are not labelled in the TAP, so their results fold into",
+      "the file result instead of being reported per subtest.",
+      "Upgrade Test::More, or use Test2::V0, which is unaffected.",
+      "Note that your tests run under `prove`'s perl, which may differ from",
+      "`perl_command`; this check used the latter.",
+    })
+  end
+end
+
 local function check_helper()
   local path = helper.path()
   if vim.fn.filereadable(path) == 1 then
@@ -170,6 +197,7 @@ function M.check()
     if check_command("perl_command", cfg.perl_command) then
       check_perl_version(cfg.perl_command)
       check_helper_modules(cfg.perl_command)
+      check_test_more(cfg.perl_command)
     end
   end
 end
